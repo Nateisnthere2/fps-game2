@@ -444,8 +444,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 
 <!-- WIN SCREEN -->
 <div class="overlay" id="win-screen" style="display:none;">
-  <h1 style="color:var(--gold);text-shadow:0 0 30px var(--gold),0 0 60px rgba(255,170,0,0.4);">VOID BREACHED</h1>
-  <p>ALL 50 ROOMS CLEARED</p>
+  <h1 style="color:var(--gold);text-shadow:0 0 30px var(--gold),0 0 80px rgba(255,170,0,0.5);font-size:clamp(24px,5vw,64px);">THE VOID IS SLAIN</h1>
+  <p style="color:rgba(255,170,0,0.6);letter-spacing:5px;margin-bottom:8px;">ALL 50 ROOMS CLEARED</p>
+  <p style="color:rgba(255,255,255,0.25);font-size:11px;letter-spacing:3px;margin-bottom:28px;">YOU HAVE BREACHED THE VOID</p>
   <div class="win-stats" id="win-stats"></div>
   <button class="btn btn-gold" id="winRestartBtn">PLAY AGAIN</button>
 </div>
@@ -654,63 +655,369 @@ function spawnEnemy(type, x, z) {
   roomEnemies++;
 }
 
-function spawnBoss(r) {
-  if(boss&&boss.alive) scene.remove(boss.group);
-  const g = new THREE.Group();
-  const tier = Math.min(5, Math.floor((r-1)/10)+1);
-  const sc = 0.85+tier*0.38;
-  const cols = [0xff6600,0xaa00ff,0xff0066,0x00ffcc,0xff0000];
-  const col = cols[tier-1];
-  const bM = new THREE.MeshStandardMaterial({color:0x080010,roughness:0.3,metalness:0.95});
-  const aM = new THREE.MeshStandardMaterial({color:col,roughness:0.2,metalness:0.9,emissive:col,emissiveIntensity:0.25});
-  const gM = new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:3});
+// ══════════════════════════════════════════════════
+// ── BOSS SYSTEM ──
+// ══════════════════════════════════════════════════
 
-  // Legs
-  for(const sx of[-0.44,0.44]){
-    const ul=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.6,0.28),bM);ul.position.set(sx,-0.9,0);g.add(ul);
-    const ll=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.5,0.24),bM);ll.position.set(sx,-1.55,0.05);g.add(ll);
-    const ft=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.16,0.52),aM);ft.position.set(sx,-1.9,0.10);g.add(ft);
-  }
-  // Torso
-  const torso=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.9,0.62),bM);torso.position.set(0,-0.10,0);g.add(torso);
-  const chest=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.70,0.12),aM);chest.position.set(0,-0.10,0.36);g.add(chest);
-  // Shoulders + arms
-  for(const sx of[-0.70,0.70]){
-    const sh=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.44,0.44),aM);sh.position.set(sx,0.10,0);g.add(sh);
-    const ua=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.55,0.28),bM);ua.position.set(sx,-0.40,0);g.add(ua);
-    const la=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.50,0.24),bM);la.position.set(sx,-0.95,0);g.add(la);
-    if(sx>0){
-      const can=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,0.55,7),aM);can.rotation.x=Math.PI/2;can.position.set(sx,-1.22,0.22);g.add(can);
-      const mz=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.09,0.10,7),gM);mz.rotation.x=Math.PI/2;mz.position.set(sx,-1.22,0.52);g.add(mz);
-    } else {
-      const claw=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.24,0.30),aM);claw.position.set(sx,-1.28,0.05);g.add(claw);
-      for(let ci=-1;ci<=1;ci++){const sp=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.22,4),gM);sp.position.set(sx+ci*0.08,-1.52,0.05);g.add(sp);}
+// Projectile system (boss attacks)
+const projectiles = [];
+const PROJ_GEO  = new THREE.SphereGeometry(0.18, 6, 6);
+const PROJ_GEO2 = new THREE.SphereGeometry(0.32, 6, 6);
+
+function spawnProjectile(origin, direction, speed, damage, col, big=false) {
+  const mat = new THREE.MeshStandardMaterial({ color:col, emissive:col, emissiveIntensity:3, transparent:true, opacity:0.92 });
+  const mesh = new THREE.Mesh(big ? PROJ_GEO2 : PROJ_GEO, mat);
+  mesh.position.copy(origin);
+  const pLight = new THREE.PointLight(col, big?2.5:1.5, big?5:3);
+  pLight.position.copy(origin);
+  scene.add(mesh); scene.add(pLight);
+  projectiles.push({ mesh, pLight, vel: direction.clone().normalize().multiplyScalar(speed), damage, life: 6, big });
+}
+
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.life -= dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    p.pLight.position.copy(p.mesh.position);
+    p.mesh.rotation.x += dt * 3; p.mesh.rotation.z += dt * 2;
+
+    // Hit player
+    const dist = p.mesh.position.distanceTo(camera.position);
+    if (dist < (p.big ? 1.2 : 0.8)) {
+      damagePlayer(p.damage);
+      showHitFlash();
+      scene.remove(p.mesh); scene.remove(p.pLight);
+      projectiles.splice(i, 1);
+      continue;
+    }
+    // Expire
+    if (p.life <= 0 || p.mesh.position.y < -2) {
+      scene.remove(p.mesh); scene.remove(p.pLight);
+      projectiles.splice(i, 1);
     }
   }
+}
+
+// ── BOSS DEFINITIONS (tier 1-5) ──
+const BOSS_DEFS = [
+  // Tier 1 — Room 10: VOID TITAN (basic melee + slow shots)
+  { name:'VOID TITAN',     col:0xff6600, sc:1.2, hp:400,  spd:2.2, dmg:25, tier:1 },
+  // Tier 2 — Room 20: SHADOW LORD (faster, spread shots)
+  { name:'SHADOW LORD',    col:0xaa00ff, sc:1.5, hp:750,  spd:2.8, dmg:32, tier:2 },
+  // Tier 3 — Room 30: BLOOD REAPER (charge + burst fire)
+  { name:'BLOOD REAPER',   col:0xff0066, sc:1.8, hp:1200, spd:3.4, dmg:40, tier:3 },
+  // Tier 4 — Room 40: NEXUS EMPEROR (spawns minions + heavy barrage)
+  { name:'NEXUS EMPEROR',  col:0x00ffcc, sc:2.1, hp:1800, spd:3.0, dmg:48, tier:4 },
+  // Tier 5 — Room 50: THE VOID (all patterns, enrages, phase 2)
+  { name:'THE VOID',       col:0xff0000, sc:2.6, hp:3000, spd:2.0, dmg:60, tier:5 },
+];
+
+function spawnBoss(r) {
+  if(boss&&boss.alive) scene.remove(boss.group);
+  boss = null;
+
+  const tierIdx = Math.min(4, Math.floor((r-1)/10));
+  const def = BOSS_DEFS[tierIdx];
+  const g = new THREE.Group();
+
+  const col = def.col;
+  const bM = new THREE.MeshStandardMaterial({color:0x060010,roughness:0.3,metalness:0.95});
+  const aM = new THREE.MeshStandardMaterial({color:col,roughness:0.2,metalness:0.88,emissive:col,emissiveIntensity:0.3});
+  const gM = new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:3.5});
+
+  const sc = def.sc;
+
+  // ── Body ──
+  // Legs
+  for(const sx of[-0.44,0.44]){
+    const ul=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.65,0.3),bM); ul.position.set(sx,-0.95,0); g.add(ul);
+    const ll=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.55,0.26),bM); ll.position.set(sx,-1.62,0.06); g.add(ll);
+    const ft=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.18,0.56),aM); ft.position.set(sx,-1.98,0.12); g.add(ft);
+    // Knee spike
+    const ks=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.22,5),gM); ks.position.set(sx,-1.38,0.18); ks.rotation.x=-0.6; g.add(ks);
+  }
+  // Torso
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.0,0.7),bM); torso.position.set(0,-0.08,0); g.add(torso);
+  const chestA=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.78,0.14),aM); chestA.position.set(0,-0.08,0.38); g.add(chestA);
+  // Shoulder pads
+  for(const sx of[-0.75,0.75]){
+    const sp=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.50,0.50),aM); sp.position.set(sx,0.15,0); g.add(sp);
+    // Shoulder spike
+    const ss=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.35,5),gM); ss.position.set(sx,0.52,0); g.add(ss);
+  }
+  // Arms
+  for(const sx of[-0.82,0.82]){
+    const ua=new THREE.Mesh(new THREE.BoxGeometry(0.30,0.60,0.30),bM); ua.position.set(sx,-0.42,0); g.add(ua);
+    const la=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.55,0.26),bM); la.position.set(sx,-1.00,0); g.add(la);
+    const hand=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.30,0.36),aM); hand.position.set(sx,-1.32,0.04); g.add(hand);
+    // Claws (3 per hand)
+    for(let ci=-1;ci<=1;ci++){
+      const cl=new THREE.Mesh(new THREE.ConeGeometry(0.035,0.30,4),gM);
+      cl.position.set(sx+ci*0.10,-1.55,0.08); g.add(cl);
+    }
+    // Cannon on right arm (tiers 2+)
+    if(sx>0 && tierIdx>=1){
+      const can=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.14,0.65,7),aM);
+      can.rotation.x=Math.PI/2; can.position.set(sx,-1.00,0.28); g.add(can);
+      const canz=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.10,0.12,6),gM);
+      canz.rotation.x=Math.PI/2; canz.position.set(sx,-1.00,0.62); g.add(canz);
+    }
+  }
+  // Waist
+  const waist=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.18,0.60),bM); waist.position.set(0,-0.60,0); g.add(waist);
   // Head
-  const head=new THREE.Mesh(new THREE.BoxGeometry(0.76,0.60,0.56),bM);head.position.set(0,0.70,0);g.add(head);
-  const visor=new THREE.Mesh(new THREE.BoxGeometry(0.60,0.18,0.12),gM);visor.position.set(0,0.70,0.30);g.add(visor);
-  // Crown
-  for(let ci=-2;ci<=2;ci++){
-    const sp=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.30,5),gM);sp.position.set(ci*0.14,1.12,0);g.add(sp);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.84,0.68,0.62),bM); head.position.set(0,0.80,0); g.add(head);
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(0.66,0.20,0.14),gM); visor.position.set(0,0.80,0.33); g.add(visor);
+  // Crown spikes
+  const crownCount = 5 + tierIdx * 2;
+  for(let ci=0;ci<crownCount;ci++){
+    const angle = (ci/crownCount)*Math.PI*2;
+    const sp=new THREE.Mesh(new THREE.ConeGeometry(0.055,0.40,5),gM);
+    sp.position.set(Math.cos(angle)*0.32,1.30+Math.sin(ci)*0.08,Math.sin(angle)*0.20);
+    g.add(sp);
   }
-  // Cores
+  // Back spines (tier 3+)
+  if(tierIdx>=2){
+    for(let bi=0;bi<5;bi++){
+      const sp=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.38+bi*0.06,4),gM);
+      sp.position.set(0,-0.2+bi*0.22,-0.42); sp.rotation.x=0.6; g.add(sp);
+    }
+  }
+  // Energy cores (chest gems)
   const cores=[];
-  for(const [ox,oy,oz] of [[0,-0.10,0.37],[0.32,-0.20,0.36],[-0.32,-0.20,0.36]]){
-    const c=new THREE.Mesh(new THREE.OctahedronGeometry(0.10,0),gM);c.position.set(ox,oy,oz);g.add(c);cores.push(c);
+  const corePositions = [[0,-0.08,0.40],[0.30,-0.20,0.38],[-0.30,-0.20,0.38],[0,0.10,0.38]];
+  corePositions.forEach(([ox,oy,oz])=>{
+    const c=new THREE.Mesh(new THREE.OctahedronGeometry(0.12,0),gM);
+    c.position.set(ox,oy,oz); g.add(c); cores.push(c);
+  });
+  // Boss light
+  const bLight=new THREE.PointLight(col,3.5,20); g.add(bLight);
+  // Extra lights for final boss
+  if(tierIdx===4){
+    const l2=new THREE.PointLight(0xff4400,2,15); l2.position.set(0,2,0); g.add(l2);
+    const l3=new THREE.PointLight(0x8800ff,2,15); l3.position.set(0,-1,0); g.add(l3);
   }
-  const bL=new THREE.PointLight(col,2.8,14);g.add(bL);
+
   g.scale.setScalar(sc);
-  g.position.set(0,2.1*sc,-(arenaSize*0.55));
+  g.position.set(0, 2.2*sc, -(arenaSize*0.55));
   scene.add(g);
 
-  const names=['VOID TITAN','SHADOW LORD','BLOOD REAPER','NEXUS EMPEROR','THE VOID'];
-  const hp=250*tier+tier*100;
-  document.getElementById('boss-name').textContent=names[tier-1];
-  document.getElementById('boss-hpbar-wrap').style.display='block';
-  document.getElementById('boss-hpbar').style.width='100%';
-  boss = {group:g,hp,maxHp:hp,alive:true,tier,cores,col,sc,lastShot:0,speed:1.5+tier*0.28};
+  document.getElementById('boss-name').textContent = def.name;
+  document.getElementById('boss-hpbar-wrap').style.display = 'block';
+  document.getElementById('boss-hpbar').style.width = '100%';
+  // Color the bar to match boss
+  document.getElementById('boss-hpbar').style.background = `linear-gradient(90deg, #${Math.floor(col/256/256).toString(16).padStart(2,'0')}0000, #${col.toString(16).padStart(6,'0')})`;
+
+  boss = {
+    group:g, hp:def.hp, maxHp:def.hp, alive:true,
+    tier:tierIdx+1, def, cores, col, sc,
+    lastShot:0, lastSpecial:0, lastCharge:0, lastSpawn:0,
+    speed:def.spd, dmg:def.dmg,
+    // attack state
+    charging:false, chargeTimer:0, chargeDir:new THREE.Vector3(),
+    phase2:false,    // triggers at 50% HP for final boss
+    enraged:false,   // triggers at 25% HP
+    attackCooldown:0,
+  };
   roomEnemies++;
+}
+
+// ── BOSS AI with unique attack patterns per tier ──
+const _bossDir = new THREE.Vector3();
+const _toPlayer = new THREE.Vector3();
+
+function updateBossAI(dt) {
+  if(!boss||!boss.alive) return;
+  const now = performance.now()/1000;
+  const b = boss;
+
+  // Phase transitions (final boss only)
+  if(b.tier===5) {
+    const pct = b.hp/b.maxHp;
+    if(!b.phase2 && pct<=0.5) {
+      b.phase2 = true;
+      b.speed *= 1.5;
+      // Flash the screen
+      showBossPhaseChange('⚠ PHASE 2 ⚠', b.col);
+      // Spawn minion burst
+      spawnBossMinions(6);
+    }
+    if(!b.enraged && pct<=0.25) {
+      b.enraged = true;
+      b.speed *= 1.3;
+      b.dmg *= 1.5;
+      showBossPhaseChange('☠ ENRAGED ☠', 0xff0000);
+    }
+  }
+
+  // Position / float
+  _toPlayer.subVectors(camera.position, b.group.position); _toPlayer.y=0;
+  const dist = _toPlayer.length();
+  _toPlayer.normalize();
+
+  // ── Charging attack (tiers 1+) ──
+  if(b.charging) {
+    b.chargeTimer -= dt;
+    b.group.position.x += b.chargeDir.x * 18 * dt;
+    b.group.position.z += b.chargeDir.z * 18 * dt;
+    if(dist < 2.5+b.sc) { damagePlayer(b.dmg*1.5|0); b.charging=false; }
+    if(b.chargeTimer<=0) b.charging=false;
+    if(b.group.position.x<-arenaSize+2||b.group.position.x>arenaSize-2||b.group.position.z<-arenaSize+2||b.group.position.z>arenaSize-2) b.charging=false;
+  } else {
+    // Normal movement
+    const spd = b.speed * dt * (b.enraged ? 1.4 : 1);
+    b.group.position.x += _toPlayer.x * spd;
+    b.group.position.z += _toPlayer.z * spd;
+  }
+  b.group.lookAt(camera.position.x, b.group.position.y, camera.position.z);
+  b.group.position.y = b.sc*2.2 + Math.sin(now*1.4)*0.12;
+
+  // ── Melee ──
+  if(dist < 3.0+b.sc && now - b.lastShot > 0.7) {
+    b.lastShot = now;
+    damagePlayer(b.dmg + Math.floor(Math.random()*10));
+  }
+
+  // ── Ranged attacks (by tier) ──
+  const atkCd = b.enraged ? 1.2 : b.phase2 ? 1.8 : 2.5;
+
+  if(now - b.lastSpecial > atkCd && dist > 4) {
+    b.lastSpecial = now;
+    const origin = b.group.position.clone();
+    origin.y += b.sc * 1.8;
+
+    if(b.tier===1) {
+      // Tier 1: Single slow homing shot
+      spawnProjectile(origin, _toPlayer.clone(), 8, 18, b.col);
+
+    } else if(b.tier===2) {
+      // Tier 2: 3-shot spread
+      for(let i=-1;i<=1;i++){
+        const d=_toPlayer.clone();
+        d.applyAxisAngle(new THREE.Vector3(0,1,0), i*0.35);
+        spawnProjectile(origin.clone(), d, 11, 22, b.col);
+      }
+
+    } else if(b.tier===3) {
+      // Tier 3: Burst of 5 fast shots
+      for(let i=0;i<5;i++){
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=boss.group.position.clone(); o.y+=boss.sc*1.8;
+          const d=_toPlayer.clone().add(new THREE.Vector3((Math.random()-0.5)*0.4,0,(Math.random()-0.5)*0.4)).normalize();
+          spawnProjectile(o,d,15,28,boss.col);
+        }, i*160);
+      }
+      // Also initiate charge every 6s
+      if(now - b.lastCharge > 6) {
+        b.lastCharge = now;
+        b.charging = true;
+        b.chargeTimer = 0.6;
+        b.chargeDir.copy(_toPlayer);
+      }
+
+    } else if(b.tier===4) {
+      // Tier 4: Heavy barrage + arc shot
+      for(let i=0;i<7;i++){
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=boss.group.position.clone(); o.y+=boss.sc*1.8;
+          const d=_toPlayer.clone().add(new THREE.Vector3((Math.random()-0.5)*0.5,(Math.random()-0.5)*0.2,(Math.random()-0.5)*0.5)).normalize();
+          spawnProjectile(o,d,14,30,boss.col);
+        }, i*120);
+      }
+      // Arc of 5 around the player
+      for(let i=0;i<5;i++){
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=boss.group.position.clone(); o.y+=boss.sc*1.8;
+          const angle=(i/5)*Math.PI*2;
+          const d=new THREE.Vector3(Math.cos(angle),0,Math.sin(angle));
+          spawnProjectile(o,d,10,20,boss.col,true);
+        }, i*200+300);
+      }
+      // Spawn minions every 15s
+      if(now - b.lastSpawn > 15) { b.lastSpawn=now; spawnBossMinions(3); }
+
+    } else if(b.tier===5) {
+      // Tier 5 (THE VOID): Rotating ring + homing + vertical drop
+      // Ring of 8 projectiles
+      for(let i=0;i<8;i++){
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=boss.group.position.clone(); o.y+=boss.sc*1.8;
+          const angle=(i/8)*Math.PI*2 + now*0.5;
+          const d=new THREE.Vector3(Math.cos(angle),0,Math.sin(angle));
+          spawnProjectile(o,d,13,35,0xff2200,true);
+        }, i*80);
+      }
+      // 3 homing arcs from different heights
+      for(let h=0;h<3;h++){
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=boss.group.position.clone(); o.y+=h*2;
+          const d=_toPlayer.clone().add(new THREE.Vector3((Math.random()-0.5)*0.3,0,(Math.random()-0.5)*0.3)).normalize();
+          spawnProjectile(o,d,16,40,0xaa00ff,h===1);
+        }, h*250+400);
+      }
+      // Ground slam: drops big projectile from above player
+      if(b.phase2) {
+        setTimeout(()=>{
+          if(!boss||!boss.alive) return;
+          const o=new THREE.Vector3(camera.position.x,18,camera.position.z);
+          spawnProjectile(o,new THREE.Vector3(0,-1,0),20,50,0xff0000,true);
+        }, 1200);
+      }
+      // Spawn minions in phase 2
+      if(b.phase2 && now - b.lastSpawn > 10) { b.lastSpawn=now; spawnBossMinions(4); }
+    }
+  }
+
+  // Pulse cores
+  b.cores.forEach((c,i)=>{
+    c.rotation.y += dt*2.5; c.rotation.x += dt*1.5;
+    const pulse = (b.enraged?4:b.phase2?3:2) + Math.sin(now*4+i)*0.8;
+    c.material.emissiveIntensity = pulse;
+  });
+}
+
+function spawnBossMinions(count) {
+  for(let i=0;i<count;i++){
+    setTimeout(()=>{
+      if(!boss||!boss.alive) return;
+      const angle=Math.random()*Math.PI*2, dist=8+Math.random()*5;
+      const x=boss.group.position.x+Math.cos(angle)*dist;
+      const z=boss.group.position.z+Math.sin(angle)*dist;
+      const type=['drone','speeder'][Math.floor(Math.random()*2)];
+      spawnEnemy(type, x, z);
+      updateRoomHUD();
+    }, i*300);
+  }
+}
+
+function showBossPhaseChange(text, col) {
+  const el = document.getElementById('boss-announce');
+  el.textContent = text;
+  el.style.color = '#'+col.toString(16).padStart(6,'0');
+  el.style.textShadow = `0 0 40px #${col.toString(16).padStart(6,'0')}`;
+  el.style.opacity = '1';
+  setTimeout(()=>el.style.opacity='0', 2500);
+  // Screen shake
+  doScreenShake(0.6);
+}
+
+// Screen shake
+let shakeTimer=0, shakeIntensity=0;
+function doScreenShake(duration, intensity=0.12){
+  shakeTimer=duration; shakeIntensity=intensity;
+}
+function updateScreenShake(dt){
+  if(shakeTimer<=0) return;
+  shakeTimer-=dt;
+  const i=shakeIntensity*(shakeTimer/0.6);
+  camera.position.x+=(Math.random()-0.5)*i;
+  camera.position.y+=(Math.random()-0.5)*i*0.5;
 }
 
 // ── Room system ──
@@ -722,11 +1029,15 @@ const MAX_ROOM=50;
 function getEnemyCount(r){ return isBoss(r)?1:Math.min(30,4+Math.floor(r*0.65)); }
 function isBoss(r){ return BOSS_ROOMS.includes(r); }
 
+// Gradual enemy type introduction
 function getTypes(r){
-  if(r<=3) return ['soldier'];
-  if(r<=6) return ['soldier','drone'];
-  if(r<=12) return ['soldier','drone','speeder'];
-  return ['soldier','drone','speeder','heavy'];
+  if(r<=2)  return ['soldier'];
+  if(r<=5)  return ['soldier','soldier','drone'];          // mostly soldiers + some drones
+  if(r<=9)  return ['soldier','drone','speeder'];
+  if(r<=15) return ['soldier','drone','speeder','speeder'];// speeder focus
+  if(r<=24) return ['soldier','drone','speeder','heavy'];
+  if(r<=34) return ['soldier','drone','speeder','heavy','heavy']; // heavy focus
+  return            ['soldier','drone','speeder','heavy','drone']; // all types balanced
 }
 
 function spawnRoomEnemies(){
@@ -737,8 +1048,10 @@ function spawnRoomEnemies(){
     const count=getEnemyCount(room), types=getTypes(room);
     for(let i=0;i<count;i++){
       const type=types[Math.floor(Math.random()*types.length)];
-      const angle=Math.random()*Math.PI*2, dist=18+Math.random()*10;
-      spawnEnemy(type, Math.cos(angle)*dist, Math.sin(angle)*dist);
+      const angle=Math.random()*Math.PI*2, dist=18+Math.random()*12;
+      const ex=Math.cos(angle)*dist, ez=Math.sin(angle)*dist;
+      // Clamp to arena
+      spawnEnemy(type, Math.max(-arenaSize+3,Math.min(arenaSize-3,ex)), Math.max(-arenaSize+3,Math.min(arenaSize-3,ez)));
     }
   }
   updateRoomHUD();
@@ -978,20 +1291,8 @@ function updateEnemies(dt){
     }
   });
 
-  // Boss
-  if(boss&&boss.alive){
-    _v.subVectors(camera.position,boss.group.position); _v.y=0;
-    const dist=_v.length(); _v.normalize();
-    boss.group.position.x+=_v.x*boss.speed*dt;
-    boss.group.position.z+=_v.z*boss.speed*dt;
-    boss.group.lookAt(camera.position.x,boss.group.position.y,camera.position.z);
-    boss.group.position.y=boss.sc*2.1+Math.sin(now*1.5)*0.10;
-    boss.cores.forEach((c,i)=>{ c.rotation.y+=dt*2; c.material.emissiveIntensity=2+Math.sin(now*3+i*1.2); });
-    if(dist<3.5+boss.sc&&now-boss.lastShot>0.75){
-      boss.lastShot=now;
-      damagePlayer(22+boss.tier*9);
-    }
-  }
+  // Boss AI — full attack patterns
+  updateBossAI(dt);
 }
 
 function killEnemy(en){
@@ -1355,25 +1656,62 @@ function hidePowerupScreen(){
 function enterNextRoom(){
   room++; roomPhase='fighting';
   enemies.forEach(e=>scene.remove(e.group)); enemies.length=0;
+  projectiles.forEach(p=>{ scene.remove(p.mesh); scene.remove(p.pLight); }); projectiles.length=0;
   burningEnemies.clear(); boss=null;
-  const sz=room>=50?80:room>30?55:room>10?45:40;
+
+  // Arena sizes by room
+  let sz;
+  if(room===50)      sz=100;  // Final boss: massive arena
+  else if(room>=40)  sz=65;
+  else if(room>=30)  sz=55;
+  else if(room>=20)  sz=48;
+  else if(room>=10)  sz=42;
+  else               sz=38;
+
   buildArena(sz);
-  camera.position.set(0,1.7,0);
-  // Announce
-  if(isBoss(room)){
-    const ba=document.getElementById('boss-announce'); ba.textContent='⚠ BOSS ⚠'; ba.style.opacity='1';
-    setTimeout(()=>ba.style.opacity='0',2600);
+
+  // Final boss: dramatic red fog
+  if(room===50){
+    scene.fog = new THREE.FogExp2(0x1a0005, 0.018);
+    scene.background = new THREE.Color(0x0d0002);
+  } else if(isBoss(room)){
+    scene.fog = new THREE.FogExp2(0x080010, 0.022);
+    scene.background = null;
+  } else {
+    scene.fog = new THREE.FogExp2(0x050810, 0.03);
+    scene.background = null;
   }
+
+  camera.position.set(0,1.7,0);
+
+  // Boss room announcement
+  if(isBoss(room)){
+    const def = BOSS_DEFS[Math.min(4,Math.floor((room-1)/10))];
+    const ba=document.getElementById('boss-announce');
+    if(room===50){
+      ba.innerHTML='☠ FINAL BOSS ☠<br><span style="font-size:0.45em;letter-spacing:3px;">THE VOID AWAKENS</span>';
+    } else {
+      ba.textContent=`⚠ ${def.name} ⚠`;
+    }
+    const hexCol='#'+def.col.toString(16).padStart(6,'0');
+    ba.style.color=hexCol; ba.style.textShadow=`0 0 40px ${hexCol}`;
+    ba.style.opacity='1';
+    setTimeout(()=>ba.style.opacity='0',3000);
+  }
+
   const ra=document.getElementById('room-announce');
-  ra.innerHTML=`ROOM ${room}`+(isBoss(room)?`<br><span style="font-size:0.48em;color:var(--gold);letter-spacing:4px;">BOSS ENCOUNTER</span>`:'');
+  ra.innerHTML=`ROOM ${room}`+(room===50?`<br><span style="font-size:0.42em;color:#ff0000;letter-spacing:5px;">FINAL BOSS</span>`:isBoss(room)?`<br><span style="font-size:0.42em;color:var(--gold);letter-spacing:4px;">BOSS ENCOUNTER</span>`:'');
   ra.style.opacity='1';
-  setTimeout(()=>{ ra.style.opacity='0'; setTimeout(()=>spawnRoomEnemies(),350); },2000);
+  setTimeout(()=>{ ra.style.opacity='0'; setTimeout(()=>spawnRoomEnemies(),400); },2200);
   canvas.requestPointerLock();
 }
 
 function showWinScreen(){
   running=false; document.exitPointerLock(); document.body.classList.add('show-cursor');
-  document.getElementById('win-stats').innerHTML=`SCORE <span>${score}</span> &nbsp;|&nbsp; KILLS <span>${kills}</span>`;
+  // Clear any remaining projectiles
+  projectiles.forEach(p=>{ scene.remove(p.mesh); scene.remove(p.pLight); }); projectiles.length=0;
+  document.getElementById('win-stats').innerHTML=
+    `SCORE <span>${score.toLocaleString()}</span><br>KILLS <span>${kills}</span><br>ROOMS <span>50 / 50</span>`;
   document.getElementById('win-screen').style.display='flex';
 }
 
@@ -1731,6 +2069,8 @@ function gameLoop(){
     updateEnemies(dt);
     updateWeapon3D(dt);
     updateTracers(dt);
+    updateProjectiles(dt);
+    updateScreenShake(dt);
     updateRoomHUD();
 
     if(player.reloading){player.reloadTimer+=dt;if(player.reloadTimer>=player.reloadTime)finishReload();}
@@ -1761,9 +2101,13 @@ function initGame(){
   enemies.forEach(e=>scene.remove(e.group)); enemies.length=0;
   bloodPool.forEach(p=>scene.remove(p.mesh)); bloodPool.length=0;
   tracers.forEach(t=>{ scene.remove(t.mesh); t.mesh.geometry.dispose(); }); tracers.length=0;
+  projectiles.forEach(p=>{ scene.remove(p.mesh); scene.remove(p.pLight); }); projectiles.length=0;
   burningEnemies.clear();
   if(boss){scene.remove(boss.group);boss=null;}
+  scene.fog = new THREE.FogExp2(0x050810, 0.03);
+  scene.background = null;
   room=1;kills=0;score=0;roomPhase='fighting';
+  shakeTimer=0;
   Object.assign(player,{
     health:100,maxHealth:100,ammo:30,reserve:120,magSize:30,maxReserve:120,
     reloading:false,reloadTimer:0,dead:false,paused:false,
