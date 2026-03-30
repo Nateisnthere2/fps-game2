@@ -11,6 +11,18 @@
 body{background:var(--bg);overflow:hidden;font-family:'Share Tech Mono',monospace;color:var(--neon);cursor:none;}
 body.show-cursor,body.show-cursor *{cursor:auto!important;}
 body.show-cursor .btn{cursor:pointer!important;}
+/* Always show cursor on overlay screens regardless of JS state */
+#start-screen,#start-screen *,#death-screen,#death-screen *,
+#win-screen,#win-screen *,#pause-screen,#pause-screen *,
+#lobby-screen,#lobby-screen *,#staging-screen,#staging-screen *,
+#settings-panel,#settings-panel *,#powerup-screen,#powerup-screen *
+{cursor:auto!important;}
+#start-screen .btn,#death-screen .btn,#win-screen .btn,#pause-screen .btn,
+.lobby-btn,.keybind-btn,.tab-btn,.privacy-opt,.pu-banner,.room-entry,.kick-btn,
+#create-room-btn,#start-game-btn,#leave-room-btn,#refresh-btn,#chat-send,
+#join-code-btn,#join-selected-btn,#gen-code-btn,#lobby-back-btn,
+#staging-code-display,#opt-public,#opt-private
+{cursor:pointer!important;}
 #gameCanvas{display:block;width:100vw;height:100vh;}
 #weaponCanvas{position:fixed;inset:0;pointer-events:none;z-index:5;}
 #ads-vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 28%,rgba(0,0,0,0.92) 100%);opacity:0;pointer-events:none;z-index:6;}
@@ -273,7 +285,135 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 .keybind-btn.listening{border-color:#ffaa00;color:#ffaa00;animation:kbPulse 0.5s ease infinite alternate;}
 @keyframes kbPulse{from{box-shadow:0 0 4px #ffaa00;}to{box-shadow:0 0 13px #ffaa00;}}
 .settings-back{margin-top:16px;}
-</style>
+
+/* ═══════════════════════════════════════
+   MULTIPLAYER LOBBY SYSTEM
+═══════════════════════════════════════ */
+#lobby-screen{display:none;position:fixed;inset:0;z-index:150;background:rgba(3,5,12,0.98);backdrop-filter:blur(10px);flex-direction:column;align-items:center;}
+#lobby-screen.open{display:flex;}
+#lobby-header{width:100%;padding:22px 36px 16px;border-bottom:1px solid rgba(0,255,231,0.12);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;position:relative;}
+#lobby-title{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;letter-spacing:6px;color:var(--neon);text-shadow:0 0 16px var(--neon);}
+#lobby-subtitle{font-size:10px;letter-spacing:3px;color:rgba(0,255,231,0.4);margin-top:3px;}
+#lobby-player-tag{display:flex;align-items:center;gap:10px;flex-direction:column;align-items:flex-end;}
+.player-dot{width:8px;height:8px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon);animation:dotPulse 1.5s ease infinite;display:inline-block;}
+@keyframes dotPulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+#lobby-player-name-input{background:transparent;border:none;border-bottom:1px solid rgba(0,255,231,0.3);color:var(--neon);font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:2px;outline:none;width:160px;padding:2px 4px;text-align:right;}
+#lobby-player-name-input::placeholder{color:rgba(0,255,231,0.3);}
+#lobby-body{display:flex;flex:1;width:100%;min-height:0;}
+#lobby-left{width:55%;display:flex;flex-direction:column;border-right:1px solid rgba(0,255,231,0.1);padding:20px 24px;}
+#lobby-right{width:45%;display:flex;flex-direction:column;padding:20px 24px;}
+#lobby-left h3,#lobby-right h3{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:4px;color:rgba(0,255,231,0.6);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(0,255,231,0.08);text-transform:uppercase;}
+#room-list-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+#refresh-btn{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;padding:5px 12px;border:1px solid rgba(0,255,231,0.25);background:transparent;color:rgba(0,255,231,0.5);cursor:pointer;transition:all 0.15s;text-transform:uppercase;}
+#refresh-btn:hover{border-color:var(--neon);color:var(--neon);}
+#room-count{font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.3);}
+#room-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:6px;padding-right:4px;scrollbar-width:thin;scrollbar-color:rgba(0,255,231,0.2) transparent;}
+#room-list::-webkit-scrollbar{width:4px;}
+#room-list::-webkit-scrollbar-thumb{background:rgba(0,255,231,0.2);border-radius:2px;}
+.room-entry{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid rgba(0,255,231,0.1);background:rgba(0,255,231,0.02);cursor:pointer;transition:all 0.15s;}
+.room-entry:hover{border-color:rgba(0,255,231,0.35);background:rgba(0,255,231,0.06);}
+.room-entry.selected{border-color:var(--neon);background:rgba(0,255,231,0.09);}
+.room-entry.full{opacity:0.45;cursor:not-allowed;}
+.room-entry-left{display:flex;flex-direction:column;gap:3px;}
+.room-entry-name{font-size:13px;letter-spacing:1px;color:white;font-weight:600;}
+.room-entry-host{font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.4);}
+.room-entry-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.room-entry-players{font-size:11px;letter-spacing:1px;color:rgba(0,255,231,0.7);}
+.room-badge{font-size:9px;letter-spacing:2px;padding:2px 7px;border-radius:2px;text-transform:uppercase;font-weight:600;}
+.room-badge.pub{background:rgba(0,255,100,0.12);color:#00ff88;border:1px solid rgba(0,255,100,0.25);}
+.room-badge.priv{background:rgba(255,170,0,0.12);color:var(--gold);border:1px solid rgba(255,170,0,0.25);}
+.room-badge.full-badge{background:rgba(255,45,45,0.12);color:var(--red);border:1px solid rgba(255,45,45,0.25);}
+.ping-good{color:#00ff88;font-size:9px;letter-spacing:1px;}.ping-ok{color:#ffaa00;font-size:9px;letter-spacing:1px;}.ping-bad{color:var(--red);font-size:9px;letter-spacing:1px;}
+#room-list-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);font-size:11px;letter-spacing:2px;gap:8px;}
+#lobby-join-footer{margin-top:16px;padding-top:14px;border-top:1px solid rgba(0,255,231,0.08);display:flex;flex-direction:column;gap:10px;}
+#join-code-row{display:flex;gap:8px;align-items:center;}
+.lobby-input{flex:1;background:rgba(0,255,231,0.04);border:1px solid rgba(0,255,231,0.2);color:white;font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:2px;padding:9px 12px;outline:none;transition:border-color 0.15s;text-transform:uppercase;}
+.lobby-input:focus{border-color:var(--neon);}
+.lobby-input::placeholder{color:rgba(255,255,255,0.2);text-transform:none;letter-spacing:1px;}
+.lobby-input.error{border-color:var(--red);animation:inputShake 0.3s ease;}
+.lobby-input.success{border-color:#00ff88;}
+@keyframes inputShake{0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+.lobby-btn{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;padding:9px 20px;border:1px solid var(--neon);background:transparent;color:var(--neon);cursor:pointer;text-transform:uppercase;transition:all 0.15s;white-space:nowrap;}
+.lobby-btn:hover{background:rgba(0,255,231,0.1);box-shadow:0 0 16px rgba(0,255,231,0.25);}
+.lobby-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.lobby-btn.red{border-color:var(--red);color:var(--red);}.lobby-btn.red:hover{background:rgba(255,45,45,0.1);}
+.lobby-btn.gold{border-color:var(--gold);color:var(--gold);}.lobby-btn.gold:hover{background:rgba(255,170,0,0.1);}
+#join-selected-btn{width:100%;}
+#join-error{font-size:10px;letter-spacing:1px;color:var(--red);min-height:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
+.form-label{font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+.form-label span{color:rgba(255,255,255,0.25);font-size:9px;margin-left:4px;}
+#privacy-toggle-row{display:flex;gap:0;}
+.privacy-opt{flex:1;padding:8px;text-align:center;font-size:11px;letter-spacing:2px;border:1px solid rgba(0,255,231,0.2);cursor:pointer;transition:all 0.15s;color:rgba(255,255,255,0.4);text-transform:uppercase;}
+.privacy-opt:first-child{border-right:none;}
+.privacy-opt.active.pub-active{background:rgba(0,255,100,0.1);border-color:#00ff88;color:#00ff88;}
+.privacy-opt.active.priv-active{background:rgba(255,170,0,0.1);border-color:var(--gold);color:var(--gold);}
+#player-limit-row{display:flex;align-items:center;gap:12px;}
+#player-limit-slider{flex:1;-webkit-appearance:none;height:3px;background:rgba(0,255,231,0.2);border-radius:2px;outline:none;}
+#player-limit-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon);cursor:pointer;}
+#player-limit-val{font-family:'Orbitron',sans-serif;font-size:16px;font-weight:700;color:var(--neon);min-width:24px;text-align:center;}
+#custom-code-group.disabled{opacity:0.3;pointer-events:none;}
+#create-room-btn{margin-top:auto;width:100%;padding:14px;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:4px;border:2px solid var(--neon);background:transparent;color:var(--neon);cursor:pointer;text-transform:uppercase;text-shadow:0 0 10px var(--neon);box-shadow:0 0 20px rgba(0,255,231,0.15),inset 0 0 20px rgba(0,255,231,0.04);transition:all 0.18s;}
+#create-room-btn:hover{background:rgba(0,255,231,0.1);box-shadow:0 0 36px rgba(0,255,231,0.35),inset 0 0 24px rgba(0,255,231,0.08);}
+#lobby-back-btn{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;padding:6px 14px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.35);cursor:pointer;transition:all 0.15s;}
+#lobby-back-btn:hover{border-color:rgba(255,255,255,0.35);color:rgba(255,255,255,0.7);}
+
+/* STAGING / WAITING ROOM */
+#staging-screen{display:none;position:fixed;inset:0;z-index:160;background:rgba(3,5,12,0.98);backdrop-filter:blur(10px);flex-direction:column;}
+#staging-screen.open{display:flex;}
+#staging-header{padding:22px 36px 16px;border-bottom:1px solid rgba(0,255,231,0.12);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
+#staging-room-name{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;letter-spacing:5px;color:white;}
+#staging-room-meta{display:flex;gap:16px;margin-top:5px;}
+.staging-meta-item{font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.35);}
+.staging-meta-item span{color:rgba(0,255,231,0.7);}
+#staging-code-display{font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:3px;color:var(--gold);text-shadow:0 0 8px var(--gold);background:rgba(255,170,0,0.06);border:1px solid rgba(255,170,0,0.2);padding:6px 14px;cursor:pointer;transition:all 0.15s;}
+#staging-code-display:hover{background:rgba(255,170,0,0.12);}
+#staging-code-copied{font-size:9px;letter-spacing:2px;color:rgba(255,170,0,0.5);margin-top:3px;text-align:right;opacity:0;transition:opacity 0.2s;}
+#staging-body{display:flex;flex:1;min-height:0;}
+#staging-players{width:55%;padding:24px 28px;border-right:1px solid rgba(0,255,231,0.1);display:flex;flex-direction:column;}
+#staging-players h3,#staging-chat h3{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:4px;color:rgba(0,255,231,0.6);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(0,255,231,0.08);}
+#player-list{display:flex;flex-direction:column;gap:8px;flex:1;}
+.player-row{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);animation:playerRowIn 0.25s ease;}
+@keyframes playerRowIn{from{opacity:0;transform:translateX(-12px);}to{opacity:1;transform:translateX(0);}}
+.player-color-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.player-row-name{flex:1;font-size:13px;letter-spacing:1px;color:white;}
+.player-row-tag{font-size:9px;letter-spacing:2px;padding:2px 8px;border-radius:2px;text-transform:uppercase;}
+.tag-host{background:rgba(255,170,0,0.15);color:var(--gold);border:1px solid rgba(255,170,0,0.3);}
+.tag-you{background:rgba(0,255,231,0.1);color:var(--neon);border:1px solid rgba(0,255,231,0.25);}
+.tag-ready{background:rgba(0,255,100,0.1);color:#00ff88;border:1px solid rgba(0,255,100,0.25);}
+.player-ping{font-size:10px;letter-spacing:1px;}
+.kick-btn{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;padding:4px 10px;border:1px solid rgba(255,45,45,0.3);background:transparent;color:rgba(255,45,45,0.6);cursor:pointer;transition:all 0.15s;text-transform:uppercase;}
+.kick-btn:hover{border-color:var(--red);color:var(--red);background:rgba(255,45,45,0.08);}
+#staging-chat{width:45%;display:flex;flex-direction:column;padding:24px 20px;}
+#chat-messages{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px;scrollbar-width:thin;scrollbar-color:rgba(0,255,231,0.15) transparent;}
+#chat-messages::-webkit-scrollbar{width:3px;}
+#chat-messages::-webkit-scrollbar-thumb{background:rgba(0,255,231,0.15);border-radius:2px;}
+.chat-msg{font-size:11px;line-height:1.5;color:rgba(255,255,255,0.55);}
+.chat-msg.system{color:rgba(0,255,231,0.4);font-style:italic;}
+#chat-input-row{display:flex;gap:7px;}
+#chat-input{flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:white;font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 10px;outline:none;transition:border-color 0.15s;}
+#chat-input:focus{border-color:rgba(0,255,231,0.3);}
+#chat-input::placeholder{color:rgba(255,255,255,0.2);}
+#chat-send{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;padding:8px 12px;border:1px solid rgba(0,255,231,0.2);background:transparent;color:rgba(0,255,231,0.5);cursor:pointer;transition:all 0.15s;}
+#chat-send:hover{border-color:var(--neon);color:var(--neon);}
+#staging-footer{padding:16px 28px;border-top:1px solid rgba(0,255,231,0.1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;}
+#staging-status{font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.3);}
+.staging-status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;animation:dotPulse 1.5s ease infinite;}
+.dot-waiting{background:#ffaa00;box-shadow:0 0 6px #ffaa00;}.dot-ready{background:#00ff88;box-shadow:0 0 6px #00ff88;}
+#footer-left-btns{display:flex;gap:10px;}
+#start-game-btn{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;letter-spacing:4px;padding:12px 32px;border:2px solid #00ff88;background:transparent;color:#00ff88;cursor:pointer;text-shadow:0 0 10px #00ff88;box-shadow:0 0 20px rgba(0,255,100,0.15);transition:all 0.18s;}
+#start-game-btn:hover{background:rgba(0,255,100,0.1);box-shadow:0 0 36px rgba(0,255,100,0.3);}
+#start-game-btn:disabled{opacity:0.35;cursor:not-allowed;box-shadow:none;}
+#leave-room-btn{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:3px;padding:12px 24px;border:2px solid var(--red);background:transparent;color:var(--red);cursor:pointer;transition:all 0.18s;}
+#leave-room-btn:hover{background:rgba(255,45,45,0.1);}
+#countdown-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.85);flex-direction:column;align-items:center;justify-content:center;}
+#countdown-overlay.open{display:flex;}
+#countdown-num{font-family:'Orbitron',sans-serif;font-size:clamp(80px,18vw,160px);font-weight:900;color:var(--neon);text-shadow:0 0 40px var(--neon),0 0 80px rgba(0,255,231,0.5);}
+#countdown-label{font-size:12px;letter-spacing:6px;color:rgba(0,255,231,0.5);margin-top:10px;}
+#lobby-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;padding:10px 22px;background:rgba(10,20,35,0.95);border:1px solid rgba(0,255,231,0.25);color:var(--neon);z-index:300;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;}
+#lobby-toast.show{opacity:1;}
+#lobby-toast.toast-error{border-color:rgba(255,45,45,0.4);color:var(--red);}
+#lobby-toast.toast-ok{border-color:rgba(0,255,100,0.4);color:#00ff88;}
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
@@ -415,9 +555,175 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
   </svg>
   <h1>VOID BREACH</h1>
   <p>CLEAR ALL 50 ROOMS. SURVIVE.</p>
-  <button class="btn" id="startBtn">ENTER COMBAT</button>
+  <button class="btn" id="startBtn">SOLO COMBAT</button>
+  <button class="btn" id="multiBtn" style="border-color:var(--gold);color:var(--gold);text-shadow:0 0 10px var(--gold);margin-top:4px;">MULTIPLAYER</button>
   <div class="sub">WASD MOVE &nbsp;|&nbsp; LMB SHOOT &nbsp;|&nbsp; RMB ADS &nbsp;|&nbsp; R RELOAD<br>SHIFT SPRINT &nbsp;|&nbsp; SPACE JUMP &nbsp;|&nbsp; C CROUCH / SHIFT+C SLIDE &nbsp;|&nbsp; ESC PAUSE</div>
 </div>
+
+<!-- ══════════════════════════════════════
+     LOBBY BROWSER SCREEN
+══════════════════════════════════════ -->
+<div id="lobby-screen">
+  <!-- Header -->
+  <div id="lobby-header">
+    <div>
+      <div id="lobby-title">MULTIPLAYER</div>
+      <div id="lobby-subtitle">JOIN OR CREATE A ROOM</div>
+    </div>
+    <div id="lobby-player-tag">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="player-dot"></span>
+        <span style="font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.4);">YOUR NAME</span>
+      </div>
+      <input id="lobby-player-name-input" class="lobby-input" placeholder="Enter callsign..." maxlength="16" style="width:180px;font-size:12px;text-align:right;border:none;border-bottom:1px solid rgba(0,255,231,0.3);background:transparent;padding:4px 0;">
+    </div>
+    <button id="lobby-back-btn">← BACK</button>
+  </div>
+
+  <!-- Body -->
+  <div id="lobby-body">
+
+    <!-- LEFT: Room List -->
+    <div id="lobby-left">
+      <h3>ACTIVE ROOMS</h3>
+      <div id="room-list-actions">
+        <button id="refresh-btn">⟳ REFRESH</button>
+        <span id="room-count">— rooms found</span>
+      </div>
+      <div id="room-list">
+        <div id="room-list-empty">
+          <div style="font-size:28px;opacity:0.3;">📡</div>
+          <div>NO ACTIVE ROOMS</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.15);">CREATE ONE OR REFRESH</div>
+        </div>
+      </div>
+
+      <!-- Join by code footer -->
+      <div id="lobby-join-footer">
+        <button id="join-selected-btn" class="lobby-btn" disabled>JOIN SELECTED ROOM</button>
+        <div id="join-code-row">
+          <input id="join-code-input" class="lobby-input" placeholder="Enter room code..." maxlength="8" style="text-transform:uppercase;letter-spacing:4px;">
+          <button id="join-code-btn" class="lobby-btn">JOIN</button>
+        </div>
+        <div id="join-error"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Host Settings -->
+    <div id="lobby-right">
+      <h3>CREATE ROOM</h3>
+
+      <div class="form-group">
+        <div class="form-label">Room Name</div>
+        <input id="host-room-name" class="lobby-input" placeholder="e.g. Void Squad" maxlength="24">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Privacy</div>
+        <div id="privacy-toggle-row">
+          <div class="privacy-opt active pub-active" id="opt-public">🌐 PUBLIC</div>
+          <div class="privacy-opt priv-active" id="opt-private">🔒 PRIVATE</div>
+        </div>
+      </div>
+
+      <div class="form-group" id="custom-code-group" style="opacity:0.3;pointer-events:none;">
+        <div class="form-label">Room Code <span>(auto-generated if empty)</span></div>
+        <div style="display:flex;gap:8px;">
+          <input id="host-room-code" class="lobby-input" placeholder="e.g. VOID42" maxlength="8" style="letter-spacing:4px;">
+          <button id="gen-code-btn" class="lobby-btn" style="font-size:10px;padding:9px 12px;">GENERATE</button>
+        </div>
+        <div id="custom-code-display" style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-top:3px;">Share this code with friends to let them join.</div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Player Limit</div>
+        <div id="player-limit-row">
+          <input id="player-limit-slider" type="range" min="2" max="7" value="4">
+          <div id="player-limit-val">4</div>
+          <span style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);">players</span>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:auto;margin-bottom:8px;">
+        <div style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.25);line-height:1.8;">
+          ℹ You will be the host. Only the host can start the game and kick players.
+        </div>
+      </div>
+
+      <button id="create-room-btn">CREATE ROOM</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     WAITING ROOM / STAGING SCREEN
+══════════════════════════════════════ -->
+<div id="staging-screen">
+
+  <!-- Header -->
+  <div id="staging-header">
+    <div>
+      <div id="staging-room-name">VOID SQUAD</div>
+      <div id="staging-room-meta">
+        <div class="staging-meta-item">HOST: <span id="staging-host-name">—</span></div>
+        <div class="staging-meta-item">PLAYERS: <span id="staging-player-count">1/4</span></div>
+        <div class="staging-meta-item" id="staging-privacy-badge"></div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div id="staging-code-display">CODE: ——————</div>
+      <div id="staging-code-copied">Copied!</div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div id="staging-body">
+
+    <!-- Player List -->
+    <div id="staging-players">
+      <h3>PLAYERS IN LOBBY</h3>
+      <div id="player-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="staging-chat">
+      <h3>LOBBY CHAT</h3>
+      <div id="chat-messages">
+        <div class="chat-msg system">Welcome to the lobby. Chat with your team before the game starts.</div>
+      </div>
+      <div id="chat-input-row">
+        <input id="chat-input" placeholder="Type a message..." maxlength="120">
+        <button id="chat-send">SEND</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div id="staging-footer">
+    <div id="footer-left-btns">
+      <button id="start-game-btn" disabled>▶ START GAME</button>
+      <button id="leave-room-btn">✕ LEAVE ROOM</button>
+    </div>
+    <div id="staging-status">
+      <span class="staging-status-dot dot-waiting"></span>
+      WAITING FOR PLAYERS...
+    </div>
+  </div>
+
+</div>
+
+<!-- Countdown overlay -->
+<div id="countdown-overlay">
+  <div id="countdown-num">3</div>
+  <div id="countdown-label">GAME STARTING</div>
+</div>
+
+<!-- Toast notification -->
+<div id="lobby-toast"></div>
 
 <!-- DEATH SCREEN -->
 <div class="overlay" id="death-screen" style="display:none;">
@@ -473,9 +779,11 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  wRenderer.setSize(window.innerWidth, window.innerHeight);
-  wCamera.aspect = window.innerWidth / window.innerHeight;
-  wCamera.updateProjectionMatrix();
+  if(typeof wRenderer !== 'undefined') {
+    wRenderer.setSize(window.innerWidth, window.innerHeight);
+    wCamera.aspect = window.innerWidth / window.innerHeight;
+    wCamera.updateProjectionMatrix();
+  }
 });
 
 // ── Lighting ──
@@ -494,59 +802,469 @@ const settings = {
 };
 function sliderToSens(v) { return (v / 500) * 0.004; }
 
-// ── World ──
+// ══════════════════════════════════════════════════
+// ── ROOM BUILDER ──
+// ══════════════════════════════════════════════════
+
+// Core world state
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 const covers = [];
-let arenaSize = 40;
+let arenaSize = 38;
+const roomLights = []; // tracked per-room lights to remove on room change
 
-const wallMat  = new THREE.MeshStandardMaterial({ color: 0x0d1428, roughness: 0.8, metalness: 0.3 });
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x080d1a, roughness: 0.95, metalness: 0.1 });
+function addRoomLight(x,y,z,col,intensity,dist){
+  const l=new THREE.PointLight(col,intensity,dist);
+  l.position.set(x,y,z); scene.add(l); roomLights.push(l); return l;
+}
+function clearRoomLights(){
+  roomLights.forEach(l=>scene.remove(l)); roomLights.length=0;
+}
 
-function buildArena(sz) {
+// Room style themes
+const ROOM_THEMES = [
+  // Theme 0: standard bunker (rooms 1-9)
+  { floorCol:0x080d1a, wallCol:0x0d1428, ceilCol:0x060b16, accentCol:0x00ffe7, fogCol:0x050810, fogDen:0.03 },
+  // Theme 1: blood arena (rooms 10-19, after first boss)
+  { floorCol:0x0e0608, wallCol:0x1a0810, ceilCol:0x0a0408, accentCol:0xff2244, fogCol:0x0e0408, fogDen:0.028 },
+  // Theme 2: void temple (rooms 20-29)
+  { floorCol:0x060810, wallCol:0x08101e, ceilCol:0x050810, accentCol:0xaa00ff, fogCol:0x060410, fogDen:0.028 },
+  // Theme 3: industrial (rooms 30-39)
+  { floorCol:0x0a0c08, wallCol:0x121408, ceilCol:0x080a06, accentCol:0x88ff00, fogCol:0x080a06, fogDen:0.025 },
+  // Theme 4: final (rooms 40-50)
+  { floorCol:0x0d0404, wallCol:0x150808, ceilCol:0x0a0202, accentCol:0xff4400, fogCol:0x0d0004, fogDen:0.022 },
+];
+
+let doorPortal = null;      // {mesh, light, ring, active}
+let doorTriggerZ = 0;       // Z position where player enters next room
+
+function getTheme(r) {
+  if(r<=9)  return ROOM_THEMES[0];
+  if(r<=19) return ROOM_THEMES[1];
+  if(r<=29) return ROOM_THEMES[2];
+  if(r<=39) return ROOM_THEMES[3];
+  return ROOM_THEMES[4];
+}
+
+function buildRoom(sz, isFinalBoss) {
+  // Clear world
+  clearRoomLights();
   while(worldGroup.children.length) worldGroup.remove(worldGroup.children[0]);
   covers.length = 0;
   arenaSize = sz;
 
-  // Floor
-  const fl = new THREE.Mesh(new THREE.PlaneGeometry(sz*2, sz*2, 20, 20), floorMat);
-  fl.rotation.x = -Math.PI/2; worldGroup.add(fl);
-  const grid = new THREE.GridHelper(sz*2, sz, 0x001122, 0x001122);
+  const theme = getTheme(room);
+  const floorM = new THREE.MeshStandardMaterial({ color: theme.floorCol, roughness: 0.95, metalness: 0.1 });
+  const wallM  = new THREE.MeshStandardMaterial({ color: theme.wallCol,  roughness: 0.75, metalness: 0.35 });
+  const ceilM  = new THREE.MeshStandardMaterial({ color: theme.ceilCol,  roughness: 0.9 });
+  const trimM  = new THREE.MeshStandardMaterial({ color: theme.accentCol, emissive: theme.accentCol, emissiveIntensity: 0.4, roughness: 0.3 });
+  const darkM  = new THREE.MeshStandardMaterial({ color: 0x050810, roughness: 1 });
+
+  const W = sz * 2;   // room full width
+  const D = sz * 2;   // room full depth
+  const H = 10;       // ceiling height
+  const wt = 1.2;     // wall thickness
+
+  // ── Floor ──
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, D, 30, 30), floorM);
+  fl.rotation.x = -Math.PI / 2; worldGroup.add(fl);
+
+  // Floor grid
+  const grid = new THREE.GridHelper(W, Math.floor(W/2), 0x001020, 0x001020);
   grid.position.y = 0.01; worldGroup.add(grid);
 
-  // Ceiling
-  const cl = new THREE.Mesh(new THREE.PlaneGeometry(sz*2, sz*2), new THREE.MeshStandardMaterial({ color: 0x040810 }));
-  cl.rotation.x = Math.PI/2; cl.position.y = 12; worldGroup.add(cl);
+  // ── Ceiling ──
+  const cl = new THREE.Mesh(new THREE.PlaneGeometry(W, D), ceilM);
+  cl.rotation.x = Math.PI / 2; cl.position.y = H; worldGroup.add(cl);
 
-  // Walls
-  const wh = 12;
-  [[sz*2,wh,1, 0,wh/2,-sz],[sz*2,wh,1, 0,wh/2,sz],[1,wh,sz*2, -sz,wh/2,0],[1,wh,sz*2, sz,wh/2,0]].forEach(([w,h,d,x,y,z])=>{
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
-    m.position.set(x,y,z); worldGroup.add(m);
-  });
-
-  // Cover
-  const n = Math.floor(sz * 0.45);
-  for(let i=0;i<n;i++){
-    const cx=(Math.random()-0.5)*sz*1.7, cz=(Math.random()-0.5)*sz*1.7;
-    if(Math.abs(cx)<5&&Math.abs(cz)<5) continue;
-    const cw=1.5+Math.random()*2, ch=1.2+Math.random()*2;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(cw,ch,cw), wallMat);
-    m.position.set(cx,ch/2,cz); worldGroup.add(m);
-    covers.push({ minX:cx-cw/2, maxX:cx+cw/2, minZ:cz-cw/2, maxZ:cz+cw/2 });
+  // ── Outer walls (solid box walls with thickness) ──
+  function addWall(w, h, d, x, y, z, mat) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    worldGroup.add(m);
+    return m;
   }
 
-  // Pillars
-  const pc = sz*0.72;
-  [[pc,pc,0x00ffe7],[pc,-pc,0xff2244],[-pc,pc,0xff2244],[-pc,-pc,0x00ffe7]].forEach(([px,pz,col])=>{
-    const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,10,8), new THREE.MeshStandardMaterial({color:0x0a1020,roughness:0.5}));
-    pm.position.set(px,5,pz); worldGroup.add(pm);
-    const gm = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,10,8),
-      new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.8,transparent:true,opacity:0.28}));
-    gm.position.set(px,5,pz); worldGroup.add(gm);
-    addPL(px,5,pz,col,1.5,14);
+  // North wall (back, +Z)  — has the EXIT DOOR in the center
+  const doorW = 4, doorH = 6;
+  // North wall left chunk
+  addWall((W/2 - doorW/2), H, wt, -(W/4 + doorW/4), H/2, sz);
+  // North wall right chunk
+  addWall((W/2 - doorW/2), H, wt,  (W/4 + doorW/4), H/2, sz);
+  // North wall above door
+  addWall(doorW, H - doorH, wt, 0, doorH + (H-doorH)/2, sz);
+
+  // South wall (front, -Z) — solid
+  addWall(W, H, wt, 0, H/2, -sz);
+  // West wall (-X)
+  addWall(wt, H, D, -sz, H/2, 0);
+  // East wall (+X)
+  addWall(wt, H, D,  sz, H/2, 0);
+
+  // Collision for walls
+  covers.push({ minX:-sz, maxX:sz, minZ:-sz, maxZ:-sz+wt+0.5 });  // south
+  covers.push({ minX:-sz, maxX:-(sz-wt-0.5), minZ:-sz, maxZ:sz }); // west
+  covers.push({ minX:sz-wt-0.5, maxX:sz, minZ:-sz, maxZ:sz });     // east
+  // North wall sides (not the door gap)
+  covers.push({ minX:-sz, maxX:-(doorW/2), minZ:sz-wt-0.5, maxZ:sz });
+  covers.push({ minX:doorW/2, maxX:sz, minZ:sz-wt-0.5, maxZ:sz });
+
+  // Door position on north wall (player walks to +Z)
+  doorTriggerZ = sz - 2;
+
+  // ── Neon trim strips (floor-level and ceiling-level) ──
+  function addTrim(w, h, d, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), trimM);
+    m.position.set(x, y, z);
+    worldGroup.add(m);
+  }
+  // Floor trim along walls
+  addTrim(W, 0.06, 0.06,  0,    0.03, -sz+wt/2);
+  addTrim(W, 0.06, 0.06,  0,    0.03,  sz-wt/2);
+  addTrim(0.06, 0.06, D, -sz+wt/2, 0.03, 0);
+  addTrim(0.06, 0.06, D,  sz-wt/2, 0.03, 0);
+  // Ceiling trim
+  addTrim(W, 0.06, 0.06,  0,    H-0.03, -sz+wt/2);
+  addTrim(W, 0.06, 0.06,  0,    H-0.03,  sz-wt/2);
+
+  // Neon strip lights along ceiling edges
+  addRoomLight(0, H-1, -sz+2, theme.accentCol, 1.5, 25);
+  addRoomLight(0, H-1,  sz-2, theme.accentCol, 0.8, 20);
+  addRoomLight(-sz+2, H-1, 0, theme.accentCol, 1.0, 22);
+  addRoomLight( sz+2, H-1, 0, theme.accentCol, 1.0, 22);
+
+  // ── Inner room structure ──
+  const rng = mulberry32(room * 12345); // deterministic per room
+
+  // LAYOUT A: Corridor-style with side alcoves
+  if(!isFinalBoss) {
+    buildRoomLayout(sz, wallM, darkM, rng);
+  } else {
+    buildFinalBossLayout(sz, wallM, trimM);
+  }
+
+  // ── Ceiling lamps ──
+  const lampCols = Math.ceil(W / 12), lampRows = Math.ceil(D / 12);
+  for(let r2=0;r2<lampRows;r2++) for(let c2=0;c2<lampCols;c2++) {
+    const lx = -sz + (c2+0.5)*(W/lampCols);
+    const lz = -sz + (r2+0.5)*(D/lampRows);
+    // Lamp housing
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.12,0.6), new THREE.MeshStandardMaterial({color:0x1a1a2e}));
+    lamp.position.set(lx, H-0.08, lz); worldGroup.add(lamp);
+    const bulb = new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.5), new THREE.MeshStandardMaterial({color:0xeeeeff,emissive:0xeeeeff,emissiveIntensity:1.2}));
+    bulb.rotation.x = Math.PI/2; bulb.position.set(lx, H-0.14, lz); worldGroup.add(bulb);
+    if(r2%2===0&&c2%2===0) addRoomLight(lx, H-1, lz, 0xaabbdd, 0.8, 18);
+  }
+
+  // Fog / bg for theme
+  scene.fog = new THREE.FogExp2(theme.fogCol, theme.fogDen);
+}
+
+// Seeded random for deterministic layouts
+function mulberry32(a) {
+  return function() {
+    a|=0; a=a+0x6D2B79F5|0;
+    let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+
+function buildRoomLayout(sz, wallM, darkM, rng) {
+  const W = sz * 2;
+  const H = 10;
+
+  // Pick a layout style based on room number
+  const style = room % 4;
+
+  if(style === 0) {
+    // ── LAYOUT: Central corridor with two side channels ──
+    const corridorW = sz * 0.55;
+    // Two inner walls creating side channels
+    for(const sx of [-1, 1]) {
+      const wx = sx * corridorW;
+      // Long partial wall with gap in middle
+      const wallLen = sz * 0.8;
+      addInnerWall(wx, H*0.75, 1.2, wx, H*0.75/2, -sz*0.1, wallM);
+      addInnerWall(wx, H*0.75, 1.2, wx, H*0.75/2,  sz*0.55, wallM);
+      // Short cross walls (cover)
+      addInnerWall(sz*0.35, 1.8, 1.2, wx - sx*sz*0.175, 0.9, sz*0.2, wallM);
+    }
+    // Scatter crates along corridor
+    for(let i=0;i<6;i++){
+      const cz = -sz*0.6 + i * sz*0.22;
+      const cx = (rng()-0.5)*corridorW*0.8;
+      if(Math.abs(cz)<4) continue;
+      addCrate(cx, cz, wallM, rng);
+    }
+
+  } else if(style === 1) {
+    // ── LAYOUT: L-shaped cover clusters ──
+    const clusters = [[sz*0.35, sz*0.3], [-sz*0.35, sz*0.3], [sz*0.3, -sz*0.25], [-sz*0.3, -sz*0.25]];
+    clusters.forEach(([cx, cz]) => {
+      // L-shape: two walls
+      addInnerWall(sz*0.28, 1.8, 1.0, cx, 0.9, cz, wallM);
+      addInnerWall(1.0, 1.8, sz*0.18, cx+sz*0.135, 0.9, cz + sz*0.09, wallM);
+      addCrate(cx - sz*0.1, cz + sz*0.05, wallM, rng);
+    });
+    // Central pillar cluster
+    for(let i=0;i<4;i++){
+      const a = (i/4)*Math.PI*2;
+      addPillar(Math.cos(a)*sz*0.15, Math.sin(a)*sz*0.15, sz*0.06, H, wallM);
+    }
+
+  } else if(style === 2) {
+    // ── LAYOUT: Open room with scattered cover ──
+    const coverCount = 8 + Math.floor(room/5);
+    for(let i=0;i<coverCount;i++){
+      const cx = (rng()-0.5)*sz*1.4;
+      const cz = (rng()-0.5)*sz*1.2;
+      if(Math.abs(cx)<3&&Math.abs(cz)<4) continue;
+      if(cz > sz*0.7) continue; // keep near-door area clear
+      if(rng()<0.5) addCrate(cx,cz,wallM,rng);
+      else addInnerWall(sz*0.15+rng()*sz*0.2, 1.5+rng()*1.5, 1.0, cx, (1.5+rng()*1.5)/2, cz, wallM);
+    }
+
+  } else {
+    // ── LAYOUT: Chokepoint center wall ──
+    // Big center wall with two gaps
+    const centerZ = sz*0.1;
+    const gapW = sz*0.28;
+    addInnerWall(sz*0.6 - gapW*1.5, H*0.8, 1.2, -sz*0.5 - gapW*0.25, H*0.8/2, centerZ, wallM);
+    addInnerWall(sz*0.6 - gapW*1.5, H*0.8, 1.2,  sz*0.5 + gapW*0.25, H*0.8/2, centerZ, wallM);
+    // Back cover near door
+    for(let i=0;i<4;i++){
+      const cx = (i - 1.5)*sz*0.35;
+      addCrate(cx, sz*0.55, wallM, rng);
+    }
+    // Front scatter
+    for(let i=0;i<3;i++){
+      addCrate((rng()-0.5)*sz*1.2, -sz*0.4+rng()*sz*0.3, wallM, rng);
+    }
+  }
+
+  // Neon pillars at corners
+  const pc = sz * 0.78;
+  [[pc,pc],[pc,-pc],[-pc,pc],[-pc,-pc]].forEach(([px,pz])=>{
+    addPillar(px, pz, 0.28, H, wallM);
+    const pm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.30,H,8),
+      new THREE.MeshStandardMaterial({color:getTheme(room).accentCol,emissive:getTheme(room).accentCol,emissiveIntensity:0.7,transparent:true,opacity:0.25}));
+    pm2.position.set(px, H/2, pz);
+    worldGroup.add(pm2);
+    addRoomLight(px, H/2, pz, getTheme(room).accentCol, 1.2, 14);
     covers.push({minX:px-0.32,maxX:px+0.32,minZ:pz-0.32,maxZ:pz+0.32});
   });
+}
+
+function buildFinalBossLayout(sz, wallM, trimM) {
+  const H = 10;
+  // Massive circular columns around the perimeter
+  for(let i=0;i<12;i++){
+    const a = (i/12)*Math.PI*2;
+    const r = sz*0.72;
+    addPillar(Math.cos(a)*r, Math.sin(a)*r, 0.7, H, wallM);
+    addRoomLight(Math.cos(a)*r, H/2, Math.sin(a)*r, 0xff2200, 1.2, 14);
+    // Connecting arch beams (decorative boxes near ceiling)
+    const a2 = ((i+0.5)/12)*Math.PI*2;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,(Math.PI*2*r/12)*0.92), new THREE.MeshStandardMaterial({color:0x100010,roughness:0.7}));
+    beam.position.set(Math.cos(a2)*r*0.95, H-0.25, Math.sin(a2)*r*0.95);
+    beam.rotation.y = -a2; worldGroup.add(beam);
+  }
+  // Central ritual platform
+  const plat = new THREE.Mesh(new THREE.CylinderGeometry(sz*0.22, sz*0.22, 0.3, 12),
+    new THREE.MeshStandardMaterial({color:0x1a0008,roughness:0.3,metalness:0.9}));
+  plat.position.set(0, 0.15, -sz*0.25); worldGroup.add(plat);
+  // Platform trim ring
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(sz*0.22, 0.08, 8, 32),
+    new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:2}));
+  ring.rotation.x = Math.PI/2; ring.position.set(0, 0.32, -sz*0.25); worldGroup.add(ring);
+  addRoomLight(0, 2, -sz*0.25, 0xff0000, 3, 18);
+  // Cover blocks scattered
+  for(let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    const r = sz*0.45;
+    addCrate(Math.cos(a)*r, Math.sin(a)*r, wallM, ()=>0.5);
+  }
+}
+
+function addInnerWall(w, h, d, x, y, z, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z); worldGroup.add(m);
+  covers.push({ minX:x-w/2-0.1, maxX:x+w/2+0.1, minZ:z-d/2-0.1, maxZ:z+d/2+0.1 });
+}
+
+function addPillar(x, z, radius, h, mat) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, h, 8), mat);
+  m.position.set(x, h/2, z); worldGroup.add(m);
+  covers.push({ minX:x-radius-0.1, maxX:x+radius+0.1, minZ:z-radius-0.1, maxZ:z+radius+0.1 });
+}
+
+function addCrate(cx, cz, mat, rng) {
+  const w = 1.2+rng()*1.2, h = 0.9+rng()*1.2;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat);
+  m.position.set(cx, h/2, cz); worldGroup.add(m);
+  covers.push({ minX:cx-w/2-0.1, maxX:cx+w/2+0.1, minZ:cz-w/2-0.1, maxZ:cz+w/2+0.1 });
+  // Stacked crate sometimes
+  if(rng()<0.3){
+    const w2=w*0.7, h2=h*0.8;
+    const m2=new THREE.Mesh(new THREE.BoxGeometry(w2,h2,w2),mat);
+    m2.position.set(cx+(rng()-0.5)*0.3, h+h2/2, cz+(rng()-0.5)*0.3); worldGroup.add(m2);
+  }
+}
+
+// ── DOOR PORTAL ──
+function spawnDoorPortal() {
+  // Remove old portal
+  if(doorPortal) {
+    scene.remove(doorPortal.group);
+    doorPortal = null;
+  }
+
+  const group = new THREE.Group();
+
+  // Door frame (two vertical posts + top bar)
+  const frameMat = new THREE.MeshStandardMaterial({color:0x0a1a30, roughness:0.4, metalness:0.9});
+  const glowMat  = new THREE.MeshStandardMaterial({color:0x0066ff, emissive:0x0066ff, emissiveIntensity:3, transparent:true, opacity:0.9});
+  const glowMatS = new THREE.MeshStandardMaterial({color:0x44aaff, emissive:0x44aaff, emissiveIntensity:2, transparent:true, opacity:0.6});
+
+  // Frame posts
+  const postGeo = new THREE.BoxGeometry(0.3, 6, 0.3);
+  const postL = new THREE.Mesh(postGeo, frameMat); postL.position.set(-2, 3, 0); group.add(postL);
+  const postR = new THREE.Mesh(postGeo, frameMat); postR.position.set( 2, 3, 0); group.add(postR);
+  // Top bar
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.3, 0.3), frameMat); topBar.position.set(0, 6.15, 0); group.add(topBar);
+
+  // Neon edge strips on frame
+  const edgeM = new THREE.MeshStandardMaterial({color:0x0044ff,emissive:0x0044ff,emissiveIntensity:4});
+  const edgeL = new THREE.Mesh(new THREE.BoxGeometry(0.06,6.3,0.06),edgeM); edgeL.position.set(-2.12,3,0); group.add(edgeL);
+  const edgeR = new THREE.Mesh(new THREE.BoxGeometry(0.06,6.3,0.06),edgeM); edgeR.position.set( 2.12,3,0); group.add(edgeR);
+  const edgeT = new THREE.Mesh(new THREE.BoxGeometry(4.7,0.06,0.06),edgeM); edgeT.position.set(0,6.3,0); group.add(edgeT);
+
+  // Portal plane (shimmering energy field)
+  const portalGeo = new THREE.PlaneGeometry(3.8, 6);
+  const portalMat = new THREE.MeshStandardMaterial({
+    color:0x0044cc, emissive:0x0055ff, emissiveIntensity:1.8,
+    transparent:true, opacity:0.55, side:THREE.DoubleSide
+  });
+  const portal = new THREE.Mesh(portalGeo, portalMat);
+  portal.position.set(0, 3, 0); group.add(portal);
+
+  // Inner shimmer layer
+  const shimMat = new THREE.MeshStandardMaterial({color:0x88ccff,emissive:0x88ccff,emissiveIntensity:1,transparent:true,opacity:0.25,side:THREE.DoubleSide});
+  const shim = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 5.6), shimMat);
+  shim.position.set(0, 3, 0.02); group.add(shim);
+
+  // Swirling torus ring
+  const ringGeo = new THREE.TorusGeometry(2.1, 0.08, 8, 40);
+  const ring = new THREE.Mesh(ringGeo, glowMat); ring.position.set(0,3,0); group.add(ring);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.05, 6, 32), glowMatS);
+  ring2.position.set(0,3,0); group.add(ring2);
+
+  // Particle orbs orbiting the portal
+  const orbMat = new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x44aaff,emissiveIntensity:3});
+  const orbs = [];
+  for(let i=0;i<8;i++){
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.10,6,6), orbMat);
+    group.add(orb); orbs.push(orb);
+  }
+
+  // Point lights
+  const pL1 = new THREE.PointLight(0x0066ff, 4, 18);
+  const pL2 = new THREE.PointLight(0x44aaff, 2, 10);
+  pL1.position.set(0,3,0); pL2.position.set(0,3,1);
+  group.add(pL1); group.add(pL2);
+
+  // "NEXT ROOM" floating text plane
+  // (We'll handle this as a CSS label in the HUD)
+
+  group.position.set(0, 0, arenaSize - 0.6);
+  scene.add(group);
+
+  doorPortal = { group, portal, ring, ring2, orbs, pL1, pL2, active:true };
+  showDoorHint(true);
+}
+
+function removeDoorPortal() {
+  if(doorPortal) { scene.remove(doorPortal.group); doorPortal=null; }
+  showDoorHint(false);
+}
+
+function updateDoorPortal(dt) {
+  if(!doorPortal||!doorPortal.active) return;
+  const now = performance.now()/1000;
+
+  // Spin rings
+  doorPortal.ring.rotation.z  += dt * 1.4;
+  doorPortal.ring.rotation.x  += dt * 0.6;
+  doorPortal.ring2.rotation.z -= dt * 2.0;
+  doorPortal.ring2.rotation.y += dt * 0.8;
+
+  // Pulse portal opacity
+  doorPortal.portal.material.opacity = 0.45 + Math.sin(now*3)*0.15;
+  doorPortal.portal.material.emissiveIntensity = 1.6 + Math.sin(now*2.5)*0.6;
+
+  // Orbit orbs
+  doorPortal.orbs.forEach((orb,i)=>{
+    const a = (i/8)*Math.PI*2 + now*1.2;
+    const r = 2.3 + Math.sin(now*2+i)*0.2;
+    orb.position.set(Math.cos(a)*r, 3+Math.sin(now*1.5+i*0.8)*0.5, Math.sin(a)*r);
+  });
+
+  // Pulse lights
+  doorPortal.pL1.intensity = 3 + Math.sin(now*4)*1.5;
+
+  // Check player proximity — walk through portal
+  const dx = camera.position.x;
+  const dz = camera.position.z - (arenaSize - 0.6);
+  const dist = Math.sqrt(dx*dx + dz*dz);
+  if(dist < 2.5 && camera.position.z > arenaSize - 3) {
+    triggerDoorTransition();
+  }
+}
+
+function showDoorHint(show) {
+  let hint = document.getElementById('door-hint');
+  if(!hint) {
+    hint = document.createElement('div');
+    hint.id = 'door-hint';
+    hint.style.cssText = `
+      position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);
+      font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:4px;
+      color:#44aaff;text-shadow:0 0 16px #0066ff;
+      pointer-events:none;z-index:12;opacity:0;transition:opacity 0.5s;
+      text-align:center;
+    `;
+    hint.innerHTML = 'PORTAL ACTIVE<br><span style="font-size:10px;letter-spacing:3px;color:rgba(68,170,255,0.6);">WALK THROUGH TO CONTINUE</span>';
+    document.body.appendChild(hint);
+  }
+  hint.style.opacity = show ? '1' : '0';
+}
+
+let transitioning = false;
+function triggerDoorTransition() {
+  if(transitioning || roomPhase !== 'door') return;
+  transitioning = true;
+  showDoorHint(false);
+
+  // Screen flash to white then black
+  const flash = document.createElement('div');
+  flash.style.cssText = 'position:fixed;inset:0;background:white;z-index:300;opacity:0;transition:opacity 0.2s;pointer-events:none;';
+  document.body.appendChild(flash);
+  setTimeout(()=>{ flash.style.opacity='1'; }, 10);
+  setTimeout(()=>{
+    flash.style.background='black';
+    removeDoorPortal();
+    // Show powerup screen (game is paused in dark)
+    if(room>=MAX_ROOM) { showWinScreen(); flash.remove(); transitioning=false; return; }
+    showPowerupScreen();
+    flash.style.opacity='0';
+    setTimeout(()=>flash.remove(), 300);
+    transitioning=false;
+  }, 250);
+}
+
+function buildArena(sz) {
+  buildRoom(sz, room===50);
 }
 
 function checkColl(nx,nz,r=0.45){
@@ -1310,16 +2028,24 @@ function killBoss(){
 }
 function checkClear(){
   if(enemies.filter(e=>e.alive).length===0&&(!boss||!boss.alive)&&roomPhase==='fighting'){
-    roomPhase='powerup';
+    roomPhase='door';
     // Room clear celebration
     const rcb = document.getElementById('room-clear-banner');
     rcb.textContent = isBoss(room) ? '⚡ BOSS DEFEATED ⚡' : '✓ ROOM CLEARED';
     rcb.style.color = isBoss(room) ? '#ffaa00' : '#00ff88';
     rcb.style.textShadow = isBoss(room) ? '0 0 24px #ffaa00' : '0 0 24px #00ff88';
     rcb.style.opacity='1';
-    setTimeout(()=>rcb.style.opacity='0', 1500);
-    if(room>=MAX_ROOM) setTimeout(showWinScreen,700);
-    else setTimeout(showPowerupScreen,800);
+    setTimeout(()=>rcb.style.opacity='0', 2000);
+
+    if(room>=MAX_ROOM){
+      setTimeout(showWinScreen, 800);
+    } else {
+      // Spawn the blue door portal after a short delay
+      setTimeout(()=>{
+        spawnDoorPortal();
+        doScreenShake(0.3, 0.06);
+      }, 600);
+    }
   }
 }
 
@@ -1650,14 +2376,16 @@ function showPowerupScreen() {
 function hidePowerupScreen(){
   document.getElementById('powerup-screen').classList.remove('open');
   document.body.classList.remove('show-cursor');
+  canvas.requestPointerLock();
   enterNextRoom();
 }
 
 function enterNextRoom(){
-  room++; roomPhase='fighting';
+  room++; roomPhase='fighting'; transitioning=false;
   enemies.forEach(e=>scene.remove(e.group)); enemies.length=0;
   projectiles.forEach(p=>{ scene.remove(p.mesh); scene.remove(p.pLight); }); projectiles.length=0;
   burningEnemies.clear(); boss=null;
+  removeDoorPortal();
 
   // Arena sizes by room
   let sz;
@@ -2071,6 +2799,7 @@ function gameLoop(){
     updateTracers(dt);
     updateProjectiles(dt);
     updateScreenShake(dt);
+    updateDoorPortal(dt);
     updateRoomHUD();
 
     if(player.reloading){player.reloadTimer+=dt;if(player.reloadTimer>=player.reloadTime)finishReload();}
@@ -2104,6 +2833,8 @@ function initGame(){
   projectiles.forEach(p=>{ scene.remove(p.mesh); scene.remove(p.pLight); }); projectiles.length=0;
   burningEnemies.clear();
   if(boss){scene.remove(boss.group);boss=null;}
+  removeDoorPortal();
+  transitioning=false;
   scene.fog = new THREE.FogExp2(0x050810, 0.03);
   scene.background = null;
   room=1;kills=0;score=0;roomPhase='fighting';
@@ -2140,11 +2871,6 @@ function initGame(){
   gameLoop();
 }
 
-document.getElementById('startBtn').onclick=()=>{
-  document.getElementById('start-screen').style.display='none';
-  document.body.classList.remove('show-cursor');
-  canvas.requestPointerLock(); initGame();
-};
 document.getElementById('restartBtn').onclick=()=>{
   document.getElementById('death-screen').style.display='none';
   document.body.classList.remove('show-cursor');
@@ -2158,6 +2884,513 @@ document.getElementById('winRestartBtn').onclick=()=>{
 
 document.body.classList.add('show-cursor');
 updateHUD();
+
+// ════════════════════════════════════════════════════════════
+//   MULTIPLAYER LOBBY SYSTEM
+//   NOTE: This is a fully functional UI with simulated
+//   networking. To connect to real players, replace the
+//   NetBridge calls with WebSocket / WebRTC equivalents.
+//   See the NetBridge object below for the integration points.
+// ════════════════════════════════════════════════════════════
+
+// ── Player colours (for visual uniqueness in-game) ──
+const PLAYER_COLORS = [
+  { name:'CYAN',    hex:'#00ffe7', three:0x00ffe7 },
+  { name:'ORANGE',  hex:'#ff8800', three:0xff8800 },
+  { name:'PURPLE',  hex:'#aa44ff', three:0xaa44ff },
+  { name:'GREEN',   hex:'#00ff88', three:0x00ff88 },
+  { name:'PINK',    hex:'#ff2288', three:0xff2288 },
+  { name:'GOLD',    hex:'#ffcc00', three:0xffcc00 },
+  { name:'RED',     hex:'#ff3333', three:0xff3333 },
+];
+
+// ── Local state ──
+const lobby = {
+  playerName: 'OPERATIVE',
+  currentRoom: null,        // { id, name, host, isPrivate, code, limit, players[] }
+  isHost: false,
+  selectedRoomId: null,
+  rooms: [],                // cached room list
+};
+
+// ── Simulated room database (replace with server state) ──
+const SIMULATED_ROOMS = [
+  { id:'r1', name:'VOID HUNTERS',   host:'SHADOW_X',    isPrivate:false, code:'VOID42', limit:4, players:[{name:'SHADOW_X',ping:22},{name:'REAPER',ping:48}],     ping:22  },
+  { id:'r2', name:'BREACH SQUAD',   host:'N3ON_GHOST',  isPrivate:false, code:'BRCH99', limit:6, players:[{name:'N3ON_GHOST',ping:31},{name:'SPECTRAL',ping:55},{name:'VIPER',ping:88},{name:'BOLT',ping:120},{name:'KIRA',ping:44},{name:'ZED',ping:66}], ping:31  },
+  { id:'r3', name:'PRIVATE GAME',   host:'CIPHER',      isPrivate:true,  code:'CIPH07', limit:2, players:[{name:'CIPHER',ping:14}],  ping:14  },
+  { id:'r4', name:'SPEED RUN',      host:'QUICKBYTE',   isPrivate:false, code:'QKBT55', limit:7, players:[{name:'QUICKBYTE',ping:60},{name:'FLASHER',ping:90}],   ping:60  },
+];
+
+// ── NetBridge ─────────────────────────────────────────────
+//  Replace these stub functions with real WebSocket calls.
+//  Each function shows exactly what data to send/receive.
+// ─────────────────────────────────────────────────────────
+const NetBridge = {
+  // Connect to signalling server
+  // connect(serverUrl: string) → Promise<void>
+  connect: async () => { /* ws = new WebSocket(serverUrl); */ },
+
+  // Fetch public room list from server
+  // getRooms() → Promise<Room[]>
+  getRooms: async () => {
+    // Real: await ws.send({type:'LIST_ROOMS'}); return ws.on('ROOM_LIST')
+    await delay(400); // simulate latency
+    return SIMULATED_ROOMS.map(r => ({...r, players:[...r.players]}));
+  },
+
+  // Create a room on the server
+  // createRoom(config) → Promise<Room>
+  createRoom: async (config) => {
+    // Real: await ws.send({type:'CREATE_ROOM', ...config})
+    await delay(300);
+    const code = config.code || generateCode();
+    return { id:'r'+(Date.now()%10000), ...config, code, players:[{name:lobby.playerName, ping:0}] };
+  },
+
+  // Join a room by ID or code
+  // joinRoom(roomId|code) → Promise<Room|null>
+  joinRoom: async (idOrCode) => {
+    // Real: await ws.send({type:'JOIN_ROOM', idOrCode})
+    await delay(350);
+    const r = SIMULATED_ROOMS.find(r=>r.id===idOrCode||r.code===idOrCode.toUpperCase());
+    if(!r) return null;
+    if(r.players.length>=r.limit) return 'FULL';
+    return {...r, players:[...r.players, {name:lobby.playerName, ping:0}]};
+  },
+
+  // Kick a player (host only)
+  // kickPlayer(playerId) → Promise<void>
+  kickPlayer: async (playerName) => {
+    // Real: ws.send({type:'KICK', target:playerName})
+    await delay(100);
+  },
+
+  // Send start signal to all players
+  // startGame() → Promise<void>
+  // All clients listen for {type:'START'} and call initGame()
+  startGame: async () => {
+    // Real: ws.send({type:'START_GAME'})
+    // Each client receives: ws.on('START', ()=> startCountdown())
+    await delay(100);
+  },
+
+  // Leave or delete a room
+  leaveRoom: async () => { await delay(100); },
+
+  // Send chat message
+  sendChat: async (msg) => {
+    // Real: ws.send({type:'CHAT', text:msg})
+    await delay(50);
+  },
+
+  // ── How start-sync works (explanation) ──────────────────
+  // 1. Host presses START → server validates all players ready
+  // 2. Server broadcasts {type:'START', countdown:3} to all clients
+  // 3. Every client receives it and calls startCountdown()
+  // 4. After countdown: call initGame() simultaneously
+  // 5. Use server timestamp to align start time exactly:
+  //    setTimeout(initGame, serverStartTime - Date.now())
+  // ─────────────────────────────────────────────────────────
+};
+
+// ── Utilities ──
+function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function generateCode() {
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c=''; for(let i=0;i<6;i++) c+=chars[Math.floor(Math.random()*chars.length)];
+  return c;
+}
+function showToast(msg, type='') {
+  const t=document.getElementById('lobby-toast');
+  t.textContent=msg; t.className='show '+(type?'toast-'+type:'');
+  clearTimeout(t._tid); t._tid=setTimeout(()=>t.className='',2200);
+}
+// Safe confirm that works in sandboxed iframes where window.confirm is blocked
+function showConfirm(msg) {
+  return new Promise(resolve => {
+    // Try native confirm first
+    try {
+      const r = window.confirm(msg);
+      resolve(r); return;
+    } catch(e) {}
+    // Fallback: toast-style inline confirm
+    showToast(msg + ' (Click LEAVE again to confirm)', 'error');
+    // Simple double-click confirmation via a flag
+    if(showConfirm._pending) { showConfirm._pending=false; resolve(true); }
+    else { showConfirm._pending=true; setTimeout(()=>{ showConfirm._pending=false; }, 3000); resolve(false); }
+  });
+}
+
+// ── LOBBY SCREEN LOGIC ──────────────────────────────────
+
+function openLobby() {
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('lobby-screen').classList.add('open');
+  document.body.classList.add('show-cursor');
+  // Restore saved name (safe - localStorage may be blocked in sandboxed iframes)
+  try {
+    const saved = localStorage.getItem('vb_playername');
+    if(saved) { lobby.playerName=saved; document.getElementById('lobby-player-name-input').value=saved; }
+  } catch(e) {}
+  refreshRoomList();
+}
+
+function closeLobby() {
+  document.getElementById('lobby-screen').classList.remove('open');
+  document.getElementById('start-screen').style.display='flex';
+}
+
+// Player name
+document.getElementById('lobby-player-name-input').addEventListener('input', function(){
+  const v = this.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
+  this.value=v; lobby.playerName=v||'OPERATIVE';
+  try { localStorage.setItem('vb_playername', lobby.playerName); } catch(e) {}
+});
+
+// Refresh room list
+async function refreshRoomList() {
+  const listEl = document.getElementById('room-list');
+  const countEl = document.getElementById('room-count');
+  listEl.innerHTML='<div style="color:rgba(0,255,231,0.3);font-size:10px;letter-spacing:2px;padding:20px;text-align:center;">SCANNING...</div>';
+  const rooms = await NetBridge.getRooms();
+  lobby.rooms = rooms;
+  listEl.innerHTML='';
+
+  const pub = rooms.filter(r=>!r.isPrivate);
+  countEl.textContent=`${pub.length} public room${pub.length!==1?'s':''} found`;
+
+  if(pub.length===0){
+    listEl.innerHTML='<div id="room-list-empty"><div style="font-size:28px;opacity:0.3">📡</div><div>NO ACTIVE ROOMS</div><div style="font-size:9px;color:rgba(255,255,255,0.15)">CREATE ONE OR REFRESH</div></div>';
+  } else {
+    pub.forEach(r=>{
+      const full = r.players.length>=r.limit;
+      const pingClass = r.ping<60?'ping-good':r.ping<120?'ping-ok':'ping-bad';
+      const div=document.createElement('div');
+      div.className='room-entry'+(full?' full':'')+(lobby.selectedRoomId===r.id?' selected':'');
+      div.dataset.id=r.id;
+      div.innerHTML=`
+        <div class="room-entry-left">
+          <div class="room-entry-name">${escHtml(r.name)}</div>
+          <div class="room-entry-host">HOST: ${escHtml(r.host)}</div>
+        </div>
+        <div class="room-entry-right">
+          <span class="room-entry-players">${r.players.length}/${r.limit}</span>
+          <span class="${pingClass}">${r.ping}ms</span>
+          ${full?'<span class="room-badge full-badge">FULL</span>':'<span class="room-badge pub">PUBLIC</span>'}
+        </div>`;
+      if(!full) div.addEventListener('click',()=>selectRoom(r.id));
+      listEl.appendChild(div);
+    });
+  }
+}
+
+function selectRoom(id) {
+  lobby.selectedRoomId=id;
+  document.querySelectorAll('.room-entry').forEach(el=>{
+    el.classList.toggle('selected', el.dataset.id===id);
+  });
+  document.getElementById('join-selected-btn').disabled=false;
+}
+
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+document.getElementById('refresh-btn').onclick = ()=>refreshRoomList();
+
+// Join selected
+document.getElementById('join-selected-btn').onclick = async ()=>{
+  if(!lobby.selectedRoomId) return;
+  await attemptJoin(lobby.selectedRoomId);
+};
+
+// Join by code
+document.getElementById('join-code-btn').onclick = async ()=>{
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('join-error');
+  const inp = document.getElementById('join-code-input');
+
+  if(!code){ errEl.textContent='Enter a room code.'; inp.classList.add('error'); setTimeout(()=>inp.classList.remove('error'),600); return; }
+  if(code.length<4){ errEl.textContent='Code must be at least 4 characters.'; inp.classList.add('error'); setTimeout(()=>inp.classList.remove('error'),600); return; }
+
+  errEl.textContent='';
+  document.getElementById('join-code-btn').disabled=true;
+  document.getElementById('join-code-btn').textContent='...';
+
+  const result = await NetBridge.joinRoom(code);
+  document.getElementById('join-code-btn').disabled=false;
+  document.getElementById('join-code-btn').textContent='JOIN';
+
+  if(!result){
+    errEl.textContent='❌ Room not found. Check the code and try again.';
+    inp.classList.add('error'); setTimeout(()=>inp.classList.remove('error'),600);
+  } else if(result==='FULL'){
+    errEl.textContent='❌ Room is full.';
+    inp.classList.add('error'); setTimeout(()=>inp.classList.remove('error'),600);
+  } else {
+    errEl.textContent='';
+    inp.classList.add('success');
+    lobby.currentRoom=result; lobby.isHost=false;
+    openStaging();
+  }
+};
+
+async function attemptJoin(id) {
+  const result = await NetBridge.joinRoom(id);
+  if(!result||result==='FULL'){ showToast('Could not join room.','error'); return; }
+  lobby.currentRoom=result; lobby.isHost=false;
+  openStaging();
+}
+
+// Privacy toggle
+let isPrivate=false;
+document.getElementById('opt-public').onclick=()=>setPrivacy(false);
+document.getElementById('opt-private').onclick=()=>setPrivacy(true);
+function setPrivacy(priv){
+  isPrivate=priv;
+  document.getElementById('opt-public').classList.toggle('active',!priv);
+  document.getElementById('opt-private').classList.toggle('active',priv);
+  document.getElementById('custom-code-group').style.opacity=priv?'1':'0.3';
+  document.getElementById('custom-code-group').style.pointerEvents=priv?'all':'none';
+}
+
+// Player limit slider
+document.getElementById('player-limit-slider').oninput=function(){
+  document.getElementById('player-limit-val').textContent=this.value;
+};
+
+// Generate code button
+document.getElementById('gen-code-btn').onclick=()=>{
+  document.getElementById('host-room-code').value=generateCode();
+};
+
+// Create room
+document.getElementById('create-room-btn').onclick = async ()=>{
+  const name = document.getElementById('host-room-name').value.trim();
+  const limit = parseInt(document.getElementById('player-limit-slider').value);
+  let code = document.getElementById('host-room-code').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const nameInp = document.getElementById('host-room-name');
+
+  if(!name){ nameInp.classList.add('error'); setTimeout(()=>nameInp.classList.remove('error'),600); showToast('Enter a room name.','error'); return; }
+
+  // Validate private code
+  if(isPrivate && code && code.length<4){
+    showToast('Room code must be at least 4 characters.','error'); return;
+  }
+  if(!isPrivate) code='';
+
+  document.getElementById('create-room-btn').textContent='CREATING...';
+  document.getElementById('create-room-btn').disabled=true;
+
+  const room = await NetBridge.createRoom({ name, isPrivate, code, limit, host:lobby.playerName });
+
+  document.getElementById('create-room-btn').textContent='CREATE ROOM';
+  document.getElementById('create-room-btn').disabled=false;
+
+  lobby.currentRoom=room; lobby.isHost=true;
+  openStaging();
+};
+
+// Back button
+document.getElementById('lobby-back-btn').onclick = closeLobby;
+
+// ── STAGING SCREEN LOGIC ─────────────────────────────────
+
+function openStaging() {
+  document.getElementById('lobby-screen').classList.remove('open');
+  document.getElementById('staging-screen').classList.add('open');
+  renderStagingHeader();
+  renderPlayerList();
+  updateStagingStatus();
+  addSystemChat(`${lobby.playerName} joined the lobby.`);
+  // Simulate other players joining over time (remove in real implementation)
+  simulateLobbyActivity();
+}
+
+function renderStagingHeader() {
+  const r = lobby.currentRoom;
+  document.getElementById('staging-room-name').textContent=r.name;
+  document.getElementById('staging-host-name').textContent=r.host||lobby.playerName;
+  document.getElementById('staging-player-count').textContent=`${r.players.length}/${r.limit}`;
+  const codeEl=document.getElementById('staging-code-display');
+  codeEl.textContent = r.isPrivate||lobby.isHost ? `CODE: ${r.code}` : 'PUBLIC ROOM';
+  const privBadge=document.getElementById('staging-privacy-badge');
+  privBadge.innerHTML=r.isPrivate?'<span style="color:var(--gold)">🔒 PRIVATE</span>':'<span style="color:#00ff88">🌐 PUBLIC</span>';
+  // Start btn only for host
+  document.getElementById('start-game-btn').style.display=lobby.isHost?'block':'none';
+}
+
+function renderPlayerList() {
+  const r=lobby.currentRoom;
+  const listEl=document.getElementById('player-list');
+  listEl.innerHTML='';
+  r.players.forEach((p,i)=>{
+    const col=PLAYER_COLORS[i%PLAYER_COLORS.length];
+    const isMe=p.name===lobby.playerName;
+    const isHost=p.name===r.host;
+    const pingClass=!p.ping?'ping-good':p.ping<60?'ping-good':p.ping<120?'ping-ok':'ping-bad';
+    const div=document.createElement('div');
+    div.className='player-row';
+    div.innerHTML=`
+      <div class="player-color-dot" style="background:${col.hex};box-shadow:0 0 8px ${col.hex};"></div>
+      <div class="player-row-name">${escHtml(p.name)}</div>
+      ${isHost?'<span class="player-row-tag tag-host">HOST</span>':''}
+      ${isMe&&!isHost?'<span class="player-row-tag tag-you">YOU</span>':''}
+      <span class="${pingClass}">${p.ping||0}ms</span>
+      ${lobby.isHost&&!isMe?`<button class="kick-btn" data-name="${escHtml(p.name)}">KICK</button>`:''}
+    `;
+    listEl.appendChild(div);
+  });
+
+  // Wire kick buttons
+  listEl.querySelectorAll('.kick-btn').forEach(btn=>{
+    btn.onclick=async ()=>{
+      const name=btn.dataset.name;
+      btn.textContent='...'; btn.disabled=true;
+      await NetBridge.kickPlayer(name);
+      lobby.currentRoom.players=lobby.currentRoom.players.filter(p=>p.name!==name);
+      addSystemChat(`${name} was kicked by the host.`);
+      renderPlayerList(); renderStagingHeader(); updateStagingStatus();
+      showToast(`${name} kicked.`,'ok');
+    };
+  });
+
+  document.getElementById('staging-player-count').textContent=`${r.players.length}/${r.limit}`;
+  updateStagingStatus();
+}
+
+function updateStagingStatus() {
+  const r=lobby.currentRoom;
+  const cnt=r.players.length;
+  const statusEl=document.getElementById('staging-status');
+  const startBtn=document.getElementById('start-game-btn');
+  const dot=statusEl.querySelector('.staging-status-dot')||document.createElement('span');
+  const ready=cnt>=2;
+  statusEl.innerHTML=`<span class="staging-status-dot ${ready?'dot-ready':'dot-waiting'}"></span>${ready?'READY TO START':'WAITING FOR PLAYERS...'}`;
+  if(startBtn) startBtn.disabled=!ready||!lobby.isHost;
+}
+
+// Copy code on click
+document.getElementById('staging-code-display').onclick=()=>{
+  const code=lobby.currentRoom?.code;
+  if(!code) return;
+  navigator.clipboard?.writeText(code).catch(()=>{});
+  const copied=document.getElementById('staging-code-copied');
+  copied.style.opacity='1'; setTimeout(()=>copied.style.opacity='0',1500);
+  showToast('Room code copied!','ok');
+};
+
+// Chat
+document.getElementById('chat-send').onclick=sendChat;
+document.getElementById('chat-input').addEventListener('keydown',e=>{ if(e.key==='Enter') sendChat(); });
+
+function sendChat(){
+  const inp=document.getElementById('chat-input');
+  const msg=inp.value.trim(); if(!msg) return;
+  inp.value='';
+  addChatMsg(lobby.playerName, msg, PLAYER_COLORS[0].hex);
+  NetBridge.sendChat(msg);
+}
+
+function addChatMsg(name, text, color='var(--neon)'){
+  const el=document.createElement('div'); el.className='chat-msg';
+  el.innerHTML=`<span class="chat-name" style="color:${color}">${escHtml(name)}</span>: ${escHtml(text)}`;
+  const msgs=document.getElementById('chat-messages');
+  msgs.appendChild(el); msgs.scrollTop=msgs.scrollHeight;
+}
+function addSystemChat(text){
+  const el=document.createElement('div'); el.className='chat-msg system';
+  el.textContent=`⚡ ${text}`;
+  const msgs=document.getElementById('chat-messages');
+  msgs.appendChild(el); msgs.scrollTop=msgs.scrollHeight;
+}
+
+// Start game button
+document.getElementById('start-game-btn').onclick=async()=>{
+  document.getElementById('start-game-btn').disabled=true;
+  await NetBridge.startGame();
+  // In real multiplayer: server broadcasts START to all, each client runs startCountdown()
+  startCountdown();
+};
+
+function startCountdown(){
+  const overlay=document.getElementById('countdown-overlay');
+  const numEl=document.getElementById('countdown-num');
+  overlay.classList.add('open');
+  let n=3;
+  numEl.textContent=n;
+  const tick=setInterval(()=>{
+    n--;
+    if(n>0){ numEl.textContent=n; }
+    else {
+      clearInterval(tick);
+      overlay.classList.remove('open');
+      document.getElementById('staging-screen').classList.remove('open');
+      document.body.classList.remove('show-cursor');
+      // Assign player colors to the game world here:
+      assignPlayerColor(lobby.currentRoom?.players||[], lobby.playerName);
+      canvas.requestPointerLock();
+      initGame();
+    }
+  },1000);
+}
+
+// Leave / delete room
+document.getElementById('leave-room-btn').onclick=async()=>{
+  if(lobby.isHost){
+    // confirm() may be blocked in sandboxed iframes — use our own approach
+    const really = await showConfirm('Delete room? All players will be disconnected.');
+    if(!really) return;
+  }
+  await NetBridge.leaveRoom();
+  document.getElementById('staging-screen').classList.remove('open');
+  document.getElementById('chat-messages').innerHTML='<div class="chat-msg system">Welcome to the lobby.</div>';
+  lobby.currentRoom=null; lobby.isHost=false;
+  openLobby();
+  showToast(lobby.isHost?'Room deleted.':'Left the room.');
+};
+
+// ── In-game player color assignment ──────────────────────
+// Call this before initGame() to set each player's visual identity.
+// In a real multiplayer game, sync colorIndex via the server.
+function assignPlayerColor(players, myName){
+  const myIdx = players.findIndex(p=>p.name===myName);
+  const col = PLAYER_COLORS[Math.max(0,myIdx)%PLAYER_COLORS.length];
+  // Apply to gun neon material (three.js side)
+  if(window.NM) { // NM is the neonMat defined in weapon code
+    NM.color.setHex(col.three);
+    NM.emissive.setHex(col.three);
+  }
+  // Store for use
+  lobby.myColor=col;
+}
+
+// ── Simulated lobby activity (REMOVE in real multiplayer) ──
+// Simulates players joining/leaving so you can see the UI working.
+let _simTimers=[];
+function simulateLobbyActivity(){
+  _simTimers.forEach(t=>clearTimeout(t)); _simTimers=[];
+  if(!lobby.currentRoom) return;
+  const names=['VIPER','GHOST_K','NEON_Y','STRYKER','BOLT_Z'];
+  let delay2=1800;
+  names.slice(0, Math.max(0, lobby.currentRoom.limit-1)).forEach((name,i)=>{
+    _simTimers.push(setTimeout(()=>{
+      if(!lobby.currentRoom||lobby.currentRoom.players.length>=lobby.currentRoom.limit) return;
+      const ping=30+Math.floor(Math.random()*120);
+      lobby.currentRoom.players.push({name, ping});
+      addSystemChat(`${name} joined.`);
+      addChatMsg(name, ['ready!','let\'s go','any strategy?','first time playing lol','GLHF'][i%5], PLAYER_COLORS[(i+1)%PLAYER_COLORS.length].hex);
+      renderPlayerList(); renderStagingHeader(); updateStagingStatus();
+    }, delay2+=1200+Math.random()*800));
+  });
+}
+
+// ── Multiplayer entry point ──
+document.getElementById('multiBtn').onclick=openLobby;
+// startBtn stays solo
+document.getElementById('startBtn').onclick=()=>{
+  document.getElementById('start-screen').style.display='none';
+  document.body.classList.remove('show-cursor');
+  canvas.requestPointerLock(); initGame();
+};
 </script>
 </body>
 </html>
